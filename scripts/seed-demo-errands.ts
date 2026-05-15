@@ -9,6 +9,8 @@ const customerWallet =
 const demoErrands = [
   {
     customerWallet,
+    customerPhone: "+2348000000000",
+    customerEmail: "demo-foodstuff@gopadi.test",
     title: "Buy foodstuff from Ogbete Market",
     description:
       "Please buy 2kg rice, 1 bottle of groundnut oil, beans, and tomato paste. Pack everything well.",
@@ -20,6 +22,8 @@ const demoErrands = [
   },
   {
     customerWallet,
+    customerPhone: "+2348000000001",
+    customerEmail: "demo-medicine@gopadi.test",
     title: "Pick up medicine from pharmacy",
     description:
       "Collect prescribed medicine from the pharmacy and deliver to Hilltop Estate.",
@@ -31,6 +35,8 @@ const demoErrands = [
   },
   {
     customerWallet,
+    customerPhone: "+2348000000002",
+    customerEmail: "demo-delivery@gopadi.test",
     title: "Deliver documents across campus",
     description:
       "Pick up sealed documents from Faculty of Arts and deliver to Admin Block reception.",

@@ -1,19 +1,17 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useRef } from "react";
 import type { Errand, ErrandMessage, TrustlessAction, Dispute } from "../types";
-import {
-  listErrandMessages,
-  postErrandMessage,
-  type ChatAccess,
-} from "../lib/api-client";
 import Button from "./Button";
+import type { ChatState } from "./useErrandChat";
 
 type Props = {
   errand: Errand;
   connectedWallet: string | null;
   actions: TrustlessAction[];
   dispute: Dispute | null;
+  chat: ChatState;
+  onOpenDispute?: () => void;
 };
 
 function shortAddr(v: string) {
@@ -70,9 +68,6 @@ function deriveSystemEvents(
 ): SystemEvent[] {
   const events: SystemEvent[] = [];
 
-  // Padi acceptance — we don't have a real timestamp for the transition,
-  // but if a runner is assigned, surface the event approximately at
-  // errand.updatedAt OR fall back to the earliest action.
   if (errand.runnerWallet) {
     const earliestAction = actions
       .map((a) => a.submittedAt ?? a.createdAt)
@@ -117,10 +112,7 @@ function deriveSystemEvents(
   }
 
   if (errand.proofNote) {
-    // Approximate timestamp for proof upload — use updatedAt at proof_uploaded.
-    // If we missed it, the change_milestone_status above already covers progress.
-    const proofAt = actions.find((a) => a.type === "change_milestone_status")
-      ?.submittedAt;
+    const proofAt = actions.find((a) => a.type === "change_milestone_status")?.submittedAt;
     if (!proofAt) {
       events.push({
         kind: "system",
@@ -136,7 +128,13 @@ function deriveSystemEvents(
       kind: "system",
       id: `sys_dispute_${dispute.id}`,
       at: dispute.createdAt,
-      label: `dispute opened by ${dispute.openedBy === "runner" ? "padi" : "customer"}`,
+      label: `${dispute.track === "fast" ? "fast track" : "normal track"} dispute opened by ${dispute.openedBy === "runner" ? "padi" : "customer"}`,
+    });
+    events.push({
+      kind: "system",
+      id: `sys_resolver_joined_${dispute.id}`,
+      at: dispute.createdAt,
+      label: "resolver joined dispute chat",
     });
     if (dispute.resolvedAt && dispute.resolution) {
       events.push({
@@ -159,53 +157,14 @@ export default function ChatPanel({
   connectedWallet,
   actions,
   dispute,
+  chat,
+  onOpenDispute,
 }: Props) {
-  const [messages, setMessages] = useState<ErrandMessage[]>([]);
-  const [access, setAccess] = useState<ChatAccess>(null);
+  const { messages, access, loading, error, post } = chat;
   const [draft, setDraft] = useState("");
   const [posting, setPosting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [postError, setPostError] = useState<string | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
-
-  // Hide chat entirely until the padi accepts.
-  const padiAccepted = Boolean(errand.runnerWallet);
-
-  const fetchMessages = useCallback(async () => {
-    if (!connectedWallet || !padiAccepted) {
-      setMessages([]);
-      setAccess(null);
-      return;
-    }
-    setLoading(true);
-    try {
-      const result = await listErrandMessages(errand.id, connectedWallet);
-      setMessages(result.messages);
-      setAccess(result.access);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load chat.");
-    } finally {
-      setLoading(false);
-    }
-  }, [connectedWallet, errand.id, padiAccepted]);
-
-  useEffect(() => {
-    const t = setTimeout(() => {
-      void fetchMessages();
-    }, 0);
-    return () => clearTimeout(t);
-  }, [fetchMessages]);
-
-  // Light polling to keep the chat fresh without sockets.
-  useEffect(() => {
-    if (!access) return;
-    const t = setInterval(fetchMessages, 12_000);
-    return () => clearInterval(t);
-  }, [access, fetchMessages]);
-
-  if (!padiAccepted) {
-    return null;
-  }
 
   async function handlePost(e: React.FormEvent) {
     e.preventDefault();
@@ -213,50 +172,33 @@ export default function ChatPanel({
     const body = draft.trim();
     if (!body) return;
     setPosting(true);
-    setError(null);
+    setPostError(null);
     try {
-      await postErrandMessage(errand.id, body, connectedWallet);
+      await post(body);
       setDraft("");
-      await fetchMessages();
       composerRef.current?.focus();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to send.");
+      setPostError(e instanceof Error ? e.message : "Failed to send.");
     } finally {
       setPosting(false);
     }
   }
 
-  // Merge messages + system events into a single timeline.
   const tsOf = (e: Entry) => (e.kind === "message" ? e.createdAt : e.at);
   const events: Entry[] = [
     ...messages.map((m): MessageEntry => ({ ...m, kind: "message" as const })),
     ...deriveSystemEvents(errand, actions, dispute),
   ].sort((a, b) => new Date(tsOf(a)).getTime() - new Date(tsOf(b)).getTime());
 
-  // Observer / no-access state
-  if (connectedWallet && !access && !loading) {
-    return (
-      <section id="errand-chat" className="mt-12 hairline-t pt-6">
-        <p className="eyebrow mb-3">errand chat</p>
-        <p className="text-sm" style={{ color: "var(--color-text-3)" }}>
-          this chat is private to the customer and padi. resolvers get access if a dispute opens.
-        </p>
-      </section>
-    );
-  }
+  const canOpenDispute =
+    Boolean(onOpenDispute) &&
+    !dispute &&
+    (access === "customer" || access === "padi") &&
+    ["escrow_funded", "in_progress", "proof_uploaded", "completed"].includes(errand.status);
 
   if (!connectedWallet) {
     return (
-      <section id="errand-chat" className="mt-12 hairline-t pt-6">
-        <div className="flex items-baseline justify-between gap-4 mb-3">
-          <p className="eyebrow">errand chat</p>
-          <span
-            className="mono text-xs uppercase tracking-[0.08em]"
-            style={{ color: "var(--color-text-3)" }}
-          >
-            connect wallet to participate
-          </span>
-        </div>
+      <section id="errand-chat" className="pt-2">
         <p className="text-sm max-w-[60ch]" style={{ color: "var(--color-text-3)" }}>
           the customer and padi coordinate here. connect your wallet to read or write.
         </p>
@@ -264,10 +206,19 @@ export default function ChatPanel({
     );
   }
 
+  if (connectedWallet && !access && !loading) {
+    return (
+      <section id="errand-chat" className="pt-2">
+        <p className="text-sm" style={{ color: "var(--color-text-3)" }}>
+          this chat is open for deal questions. resolvers join when a dispute opens.
+        </p>
+      </section>
+    );
+  }
+
   return (
-    <section id="errand-chat" className="mt-12 hairline-t pt-6">
+    <section id="errand-chat" className="pt-2">
       <div className="flex items-baseline justify-between gap-4 mb-4">
-        <p className="eyebrow">errand chat</p>
         <span
           className="mono text-xs uppercase tracking-[0.08em]"
           style={{ color: "var(--color-text-3)" }}
@@ -275,6 +226,16 @@ export default function ChatPanel({
           {messages.length} {messages.length === 1 ? "message" : "messages"}
           {access ? ` · you are the ${access}` : ""}
         </span>
+        {canOpenDispute && (
+          <button
+            type="button"
+            onClick={onOpenDispute}
+            className="mono text-xs uppercase tracking-[0.08em] underline underline-offset-2 press"
+            style={{ color: "var(--color-risk)" }}
+          >
+            turn into dispute chat →
+          </button>
+        )}
       </div>
 
       {events.length === 0 && !loading ? (
@@ -367,7 +328,7 @@ export default function ChatPanel({
         </ol>
       )}
 
-      {error && (
+      {(error || postError) && (
         <div
           className="mt-4 px-3 py-2 mono text-xs hairline"
           style={{
@@ -375,7 +336,7 @@ export default function ChatPanel({
             color: "var(--color-risk)",
           }}
         >
-          {error}
+          {postError ?? error}
         </div>
       )}
 

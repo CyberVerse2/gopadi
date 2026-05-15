@@ -1,6 +1,5 @@
-import { badRequest, readJson } from "../../lib/http";
-import { createErrand, listErrands } from "../../lib/errands-repository";
-import type { CreateErrandInput } from "../../lib/errands-repository";
+import { badRequest } from "../../lib/http";
+import { listErrands } from "../../lib/errands-repository";
 
 export async function GET(request: Request) {
   try {
@@ -12,10 +11,9 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+export async function POST() {
   try {
-    const input = await readJson<CreateErrandInput>(request);
-    return Response.json({ errand: await createErrand(input) }, { status: 201 });
+    return badRequest("Errands must be funded before they are saved. Use /api/errands/funded.", 409);
   } catch (error) {
     return badRequest(error instanceof Error ? error.message : "Failed to create errand.");
   }

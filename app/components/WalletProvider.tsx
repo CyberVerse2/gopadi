@@ -18,6 +18,9 @@ type WalletContextValue = {
   connecting: boolean;
   error: string | null;
   connect: () => Promise<string>;
+  // Forgets the locally-remembered address. Freighter itself still
+  // considers the wallet authorized; reconnecting just re-reads it.
+  disconnect: () => void;
   signXdr: (unsignedXdr: string, signer?: string) => Promise<string>;
 };
 
@@ -61,6 +64,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const disconnect = useCallback(() => {
+    setAddress(null);
+    setError(null);
+  }, []);
+
   const signXdr = useCallback(
     async (unsignedXdr: string, signer?: string) => {
       const signerAddress = signer ?? address ?? (await connect());
@@ -81,9 +89,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       connecting,
       error,
       connect,
+      disconnect,
       signXdr,
     }),
-    [address, connect, connecting, error, signXdr],
+    [address, connect, connecting, disconnect, error, signXdr],
   );
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;

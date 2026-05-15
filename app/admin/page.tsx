@@ -5,7 +5,7 @@ import Link from "next/link";
 import Navbar from "../components/Navbar";
 import StatusBadge from "../components/StatusBadge";
 import Button from "../components/Button";
-import ChatPanel from "../components/ChatPanel";
+import ChatPanelContainer from "../components/ChatPanelContainer";
 import { MoneyDisplay, MoneyInline } from "../components/MoneyDisplay";
 import { useWallet } from "../components/WalletProvider";
 import { Errand, Dispute, TrustlessAction } from "../types";
@@ -379,7 +379,7 @@ export default function AdminPage() {
                                 Resolver gets access automatically once a
                                 dispute is open. */}
                             <div className="mt-5">
-                              <ChatPanel
+                              <ChatPanelContainer
                                 errand={errand}
                                 connectedWallet={wallet.address}
                                 actions={actionsByErrand[errand.id] ?? []}

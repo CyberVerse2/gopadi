@@ -15,6 +15,8 @@ export function serializeErrand(row: ErrandRow): Errand {
   return {
     id: row.id,
     customerWallet: row.customerWallet,
+    customerPhone: row.customerPhone,
+    customerEmail: row.customerEmail,
     runnerWallet: row.runnerWallet ?? undefined,
     adminWallet: row.adminWallet ?? undefined,
     title: row.title,
@@ -42,7 +44,9 @@ export function serializeDispute(row: DisputeRow): Dispute {
     id: row.id,
     errandId: row.errandId,
     openedBy: row.openedBy as "customer" | "runner",
+    reasonCode: row.reasonCode ?? undefined,
     reason: row.reason,
+    track: row.track === "fast" || row.track === "normal" ? row.track : undefined,
     evidenceUrl: row.evidenceUrl ?? undefined,
     status: row.status,
     resolution: row.resolution ?? undefined,

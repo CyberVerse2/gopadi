@@ -58,6 +58,8 @@ export const errands = pgTable(
   {
     id: text("id").primaryKey(),
     customerWallet: text("customer_wallet").notNull(),
+    customerPhone: text("customer_phone").notNull().default(""),
+    customerEmail: text("customer_email").notNull().default(""),
     runnerWallet: text("runner_wallet"),
     adminWallet: text("admin_wallet"),
 
@@ -116,7 +118,9 @@ export const disputes = pgTable(
       .notNull()
       .references(() => errands.id, { onDelete: "cascade" }),
     openedBy: text("opened_by").notNull(),
+    reasonCode: text("reason_code"),
     reason: text("reason").notNull(),
+    track: text("track"),
     evidenceUrl: text("evidence_url"),
     status: disputeStatusEnum("status").notNull().default("open"),
     resolution: disputeResolutionEnum("resolution"),

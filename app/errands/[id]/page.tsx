@@ -8,7 +8,8 @@ import StatusBadge from "../../components/StatusBadge";
 import StepIndicator from "../../components/StepIndicator";
 import { MoneyDisplay, MoneyInline } from "../../components/MoneyDisplay";
 import Button from "../../components/Button";
-import ChatPanel from "../../components/ChatPanel";
+import ChatDrawer from "../../components/ChatDrawer";
+import { useErrandChat } from "../../components/useErrandChat";
 import { useWallet } from "../../components/WalletProvider";
 import { Errand, Dispute, TrustlessAction } from "../../types";
 import {
@@ -26,6 +27,44 @@ const PLATFORM_FEE_PERCENT = Number.parseFloat(
   process.env.NEXT_PUBLIC_GOPADI_PLATFORM_FEE_PERCENT ?? "5",
 );
 const TRUSTLESS_WORK_FEE_PERCENT = 0.3;
+
+const DISPUTE_REASONS = [
+  {
+    code: "delivered_not_confirmed",
+    label: "Delivered but not confirmed",
+    fast: true,
+  },
+  {
+    code: "funded_not_started",
+    label: "Funded but Padi did not start",
+    fast: true,
+  },
+  {
+    code: "items_not_delivered",
+    label: "Items not delivered",
+    fast: false,
+  },
+  {
+    code: "wrong_items",
+    label: "Wrong or substituted items",
+    fast: false,
+  },
+  {
+    code: "proof_rejected",
+    label: "Proof rejected",
+    fast: false,
+  },
+  {
+    code: "price_budget",
+    label: "Price or budget dispute",
+    fast: false,
+  },
+  {
+    code: "unsafe_or_scam",
+    label: "Suspected scam or unsafe behavior",
+    fast: false,
+  },
+] as const;
 
 function shortAddr(value: string) {
   return `${value.slice(0, 4)}…${value.slice(-4)}`;
@@ -77,7 +116,7 @@ function stellarExpertContractUrl(contractId: string) {
 
 function trustlessWorkViewerUrl(contractId?: string) {
   const base = "https://viewer.trustlesswork.com";
-  return contractId ? `${base}/?contractId=${encodeURIComponent(contractId)}` : base;
+  return contractId ? `${base}/${encodeURIComponent(contractId)}` : base;
 }
 
 function parseRoute(location: string): { from: string; to: string } | null {
@@ -117,20 +156,28 @@ const STATUS_TIMELINE: Array<{
   label: string;
   statuses: Errand["status"][];
   action?: TrustlessAction["type"];
+  receipts?: TrustlessAction["type"][];
 }> = [
   { key: "posted", label: "Posted", statuses: ["posted"] },
-  { key: "accepted", label: "Accepted by Padi", statuses: ["accepted"] },
+  {
+    key: "accepted",
+    label: "Accepted by Padi",
+    statuses: ["accepted"],
+    receipts: ["initialize_escrow"],
+  },
   {
     key: "funded",
     label: "Escrow Funded",
     statuses: ["escrow_created", "escrow_funded"],
     action: "fund_escrow",
+    receipts: ["fund_escrow"],
   },
   {
     key: "shopping",
     label: "Shopping Started",
     statuses: ["in_progress"],
     action: "change_milestone_status",
+    receipts: ["change_milestone_status"],
   },
   {
     key: "proof",
@@ -143,12 +190,14 @@ const STATUS_TIMELINE: Array<{
     label: "Delivery Confirmed",
     statuses: ["completed"],
     action: "approve_milestone",
+    receipts: ["approve_milestone"],
   },
   {
     key: "released",
     label: "Payment Released",
     statuses: ["released"],
     action: "release_funds",
+    receipts: ["release_funds"],
   },
 ];
 
@@ -162,6 +211,14 @@ function statusRank(status: Errand["status"]) {
 function submittedAt(actions: TrustlessAction[], type: TrustlessAction["type"]) {
   return actions.find((action) => action.type === type && action.status === "submitted")
     ?.submittedAt;
+}
+
+function receiptActionsForStep(
+  actions: TrustlessAction[],
+  step: (typeof STATUS_TIMELINE)[number],
+) {
+  if (!step.receipts) return [];
+  return actions.filter((action) => step.receipts?.includes(action.type));
 }
 
 function statusTimestamp(
@@ -211,10 +268,17 @@ export default function ErrandDetailPage({
   const [showProofForm, setShowProofForm] = useState(false);
 
   const [disputeReason, setDisputeReason] = useState("");
+  const [disputeReasonCode, setDisputeReasonCode] = useState<string>(DISPUTE_REASONS[0].code);
+  const [disputeTrack, setDisputeTrack] = useState<"fast" | "normal">("fast");
+  const [disputeEvidenceUrl, setDisputeEvidenceUrl] = useState("");
   const [showDisputeForm, setShowDisputeForm] = useState(false);
 
-  const [receiptsOpen, setReceiptsOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+
+  // Chat stays open for pre-acceptance questions; a dispute later adds resolver context.
+  const chat = useErrandChat(id, wallet.address, true);
+
   const refreshActions = useCallback(async () => {
     return listTrustlessActions(id);
   }, [id]);
@@ -357,9 +421,20 @@ export default function ErrandDetailPage({
         openedBy === "runner" ? "padi" : "customer",
       );
       await prepareSignSubmit({ type: "dispute_escrow", signer });
-      const result = await openDispute(errand.id, openedBy, disputeReason, signer);
+      const result = await openDispute(
+        errand.id,
+        openedBy,
+        {
+          reasonCode: disputeReasonCode,
+          reason: disputeReason,
+          track: disputeTrack,
+          evidenceUrl: disputeEvidenceUrl || undefined,
+        },
+        signer,
+      );
       setErrand(result.errand);
       setDispute(result.dispute);
+      setDisputeEvidenceUrl("");
       setShowDisputeForm(false);
     });
   }
@@ -401,7 +476,7 @@ export default function ErrandDetailPage({
     <div className="flex flex-col min-h-screen">
       <Navbar />
 
-      <main className="flex-1 max-w-[1240px] mx-auto w-full px-4 sm:px-6 lg:px-10 py-8 lg:py-12 pb-28 lg:pb-12">
+      <main className="flex-1 max-w-[1440px] mx-auto w-full px-4 sm:px-6 lg:px-10 py-8 lg:py-12 pb-28 lg:pb-12">
         {/* Back link */}
         <Link
           href="/errands"
@@ -411,7 +486,7 @@ export default function ErrandDetailPage({
           ← back to errands
         </Link>
 
-        <div className="lg:grid lg:grid-cols-[150px_minmax(0,1fr)_300px] lg:gap-x-10 lg:items-start">
+        <div className="lg:grid lg:grid-cols-[140px_minmax(0,1fr)_300px] lg:gap-x-8 xl:gap-x-12 lg:items-start">
 
           {/* LEFT RAIL — vertical timeline (lg+ only, sticky) */}
           <aside className="hidden lg:block">
@@ -442,6 +517,69 @@ export default function ErrandDetailPage({
             <span>posted {formatRelative(errand.createdAt)}</span>
             <span style={{ color: "var(--color-text-4)" }}>·</span>
             <StatusBadge status={errand.status} />
+            <button
+                type="button"
+                onClick={() => setChatOpen(true)}
+                aria-label={
+                  chat.unread > 0
+                    ? `open errand chat (${chat.unread} unread)`
+                    : "open errand chat"
+                }
+                title={
+                  chat.unread > 0
+                    ? `${chat.unread} unread message${chat.unread === 1 ? "" : "s"}`
+                    : "open errand chat"
+                }
+                className="mono uppercase tracking-[0.08em] inline-flex items-center gap-1.5 ml-auto hairline px-2.5 py-1 press transition-colors"
+                style={{
+                  color: "var(--color-text)",
+                  background: "var(--color-bg-2)",
+                  fontSize: "0.6875rem",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = "var(--color-signal)";
+                  e.currentTarget.style.color = "var(--color-signal)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = "";
+                  e.currentTarget.style.color = "var(--color-text)";
+                }}
+              >
+                {/* chat glyph — two stacked hairline rectangles, brutalist */}
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 12 12"
+                  aria-hidden
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                >
+                  <rect x="1" y="2" width="8" height="5" />
+                  <path d="M3 9 L11 9 L11 5" />
+                </svg>
+                chat
+                {chat.unread > 0 && (
+                  <span
+                    aria-hidden
+                    className="mono inline-flex items-center justify-center"
+                    style={{
+                      background: "var(--color-signal)",
+                      color: "var(--color-signal-ink)",
+                      fontSize: "0.5625rem",
+                      lineHeight: 1,
+                      minWidth: "1rem",
+                      height: "1rem",
+                      padding: "0 0.25rem",
+                      fontWeight: 700,
+                      letterSpacing: 0,
+                      borderRadius: 0,
+                    }}
+                  >
+                    {chat.unread > 99 ? "99+" : chat.unread}
+                  </span>
+                )}
+            </button>
           </div>
 
           {/* Mobile compact step indicator */}
@@ -454,9 +592,10 @@ export default function ErrandDetailPage({
                 style={{
                   color: "var(--color-text)",
                   fontWeight: 800,
-                  fontSize: "clamp(2.25rem, 5.6vw, 4.5rem)",
-                  lineHeight: 1.02,
-                  letterSpacing: "-0.025em",
+                  fontSize: "clamp(2rem, 3.6vw, 3.25rem)",
+                  lineHeight: 1.05,
+                  letterSpacing: "-0.02em",
+                  maxWidth: "20ch",
                 }}
               >
                 {errand.title}
@@ -580,12 +719,16 @@ export default function ErrandDetailPage({
                 <ContactCell
                   label="requester contact"
                   wallet={errand.customerWallet}
+                  phone={errand.customerPhone}
+                  email={errand.customerEmail}
                   visible={Boolean(errand.runnerWallet)}
                   note={errand.runnerWallet ? "visible after acceptance" : "hidden until a Padi accepts"}
                 />
                 <ContactCell
                   label="delivery contact"
                   wallet={errand.customerWallet}
+                  phone={errand.customerPhone}
+                  email={errand.customerEmail}
                   visible={errand.status !== "posted"}
                   note={errand.status !== "posted" ? "same as requester" : "hidden until accepted"}
                 />
@@ -654,6 +797,7 @@ export default function ErrandDetailPage({
                   onReleaseFunds={handleReleaseFunds}
                   onOpenProof={() => setShowProofForm(true)}
                   onOpenDispute={() => setShowDisputeForm(true)}
+                  onOpenChat={() => setChatOpen(true)}
                   estimatedPadiEarnings={estimatedPadiEarnings}
                   isDisputed={isDisputed}
                   isTerminal={isTerminal}
@@ -692,8 +836,13 @@ export default function ErrandDetailPage({
             style={{ borderColor: "var(--color-risk)" }}
           >
             <p className="eyebrow mb-2" style={{ color: "var(--color-risk)" }}>
-              dispute open · filed {formatDate(dispute.createdAt)}
+              dispute open · {dispute.track ?? "normal"} track · filed {formatDate(dispute.createdAt)}
             </p>
+            {dispute.reasonCode && (
+              <p className="mono text-xs uppercase tracking-[0.08em] mb-2" style={{ color: "var(--color-text-3)" }}>
+                {dispute.reasonCode.replace(/_/g, " ")}
+              </p>
+            )}
             <p
               className="leading-snug max-w-[60ch]"
               style={{ color: "var(--color-text)", fontWeight: 700, fontSize: "1.25rem" }}
@@ -766,8 +915,18 @@ export default function ErrandDetailPage({
         {showDisputeForm && (
           <DisputeForm
             value={disputeReason}
+            reasonCode={disputeReasonCode}
+            track={disputeTrack}
+            evidenceUrl={disputeEvidenceUrl}
             loading={loading === "dispute"}
             onChange={setDisputeReason}
+            onChangeReasonCode={(code) => {
+              setDisputeReasonCode(code);
+              const reason = DISPUTE_REASONS.find((r) => r.code === code);
+              if (!reason?.fast) setDisputeTrack("normal");
+            }}
+            onChangeTrack={setDisputeTrack}
+            onChangeEvidenceUrl={setDisputeEvidenceUrl}
             onSubmit={handleOpenDispute}
             onCancel={() => setShowDisputeForm(false)}
           />
@@ -812,131 +971,6 @@ export default function ErrandDetailPage({
           />
         </section>
 
-        {/* TRUSTLESS WORK / ON-CHAIN RECEIPTS — collapsible */}
-        {(actions.length > 0 || errand.escrowContractId || errand.trustlessEngagementId || errand.escrowId) && (
-          <section className="mt-12 hairline-t pt-6">
-            <button
-              type="button"
-              onClick={() => setReceiptsOpen((v) => !v)}
-              className="w-full flex items-baseline justify-between gap-4 press"
-              aria-expanded={receiptsOpen}
-            >
-              <p className="eyebrow">trustless receipts</p>
-              <span
-                className="mono text-xs uppercase tracking-[0.08em]"
-                style={{ color: "var(--color-text-3)" }}
-              >
-                {actions.length} signed · {receiptsOpen ? "hide ↑" : "show ↓"}
-              </span>
-            </button>
-            {receiptsOpen && (
-              <div className="mt-6 motion-fade-up">
-                {(errand.trustlessEngagementId || errand.escrowId || errand.escrowContractId) && (
-                  <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-px hairline-t hairline-b" style={{ background: "var(--color-rule)" }}>
-                    {errand.trustlessEngagementId && (
-                      <ReceiptLinkCell
-                        label="Trustless Work engagement"
-                        value={errand.trustlessEngagementId}
-                        href={trustlessWorkViewerUrl(errand.escrowContractId)}
-                      />
-                    )}
-                    {errand.escrowId && errand.escrowId !== errand.trustlessEngagementId && (
-                      <ReceiptLinkCell
-                        label="GoPadi escrow id"
-                        value={errand.escrowId}
-                        href={trustlessWorkViewerUrl(errand.escrowContractId)}
-                      />
-                    )}
-                    {errand.escrowContractId && (
-                      <>
-                        <ReceiptLinkCell
-                          label="Trustless Work viewer"
-                          value="Open escrow viewer"
-                          href={trustlessWorkViewerUrl(errand.escrowContractId)}
-                        />
-                        <ReceiptLinkCell
-                          label="Stellar escrow contract"
-                          value={errand.escrowContractId}
-                          href={stellarExpertContractUrl(errand.escrowContractId)}
-                        />
-                      </>
-                    )}
-                  </div>
-                )}
-                <ul>
-                  {actions.map((action) => (
-                    <li
-                      key={action.id}
-                      className="grid grid-cols-[auto_1fr_auto] gap-x-4 items-baseline py-3 hairline-b"
-                    >
-                      <span
-                        className="mono text-xs whitespace-nowrap"
-                        style={{ color: "var(--color-text-3)" }}
-                      >
-                        {new Date(action.submittedAt ?? action.createdAt)
-                          .toISOString()
-                          .replace("T", " ")
-                          .slice(5, 16)}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="mono text-sm" style={{ color: "var(--color-text)" }}>
-                          {actionLabel(action.type)}{" "}
-                          <span
-                            className="mono text-xs ml-2"
-                            style={{ color: "var(--color-text-3)" }}
-                          >
-                            · {shortAddr(action.signer)}
-                          </span>
-                        </p>
-                        {action.transactionHash && (
-                          <a
-                            href={stellarExpertTxUrl(action.transactionHash)}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="mono text-xs block mt-1 truncate underline underline-offset-2"
-                            style={{ color: "var(--color-text-2)" }}
-                          >
-                            {action.transactionHash} ↗
-                          </a>
-                        )}
-                        {action.errorMessage && (
-                          <p
-                            className="mono text-xs mt-1"
-                            style={{ color: "var(--color-risk)" }}
-                          >
-                            {action.errorMessage}
-                          </p>
-                        )}
-                      </div>
-                      <span
-                        className="mono text-xs uppercase tracking-[0.08em]"
-                        style={{
-                          color:
-                            action.status === "submitted"
-                              ? "var(--color-ok)"
-                              : action.status === "failed"
-                                ? "var(--color-risk)"
-                                : "var(--color-warn)",
-                        }}
-                      >
-                        {action.status.replace("_", " ")}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* CHAT — private to customer + padi; resolver joins on dispute */}
-        <ChatPanel
-          errand={errand}
-          connectedWallet={connectedWallet}
-          actions={actions}
-          dispute={dispute}
-        />
-
         {/* Footer */}
         <footer className="mt-16 hairline-t pt-6 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
           <p className="mono leading-relaxed" style={{ color: "var(--color-text-3)" }}>
@@ -968,6 +1002,7 @@ export default function ErrandDetailPage({
                 onReleaseFunds={handleReleaseFunds}
                 onOpenProof={() => setShowProofForm(true)}
                 onOpenDispute={() => setShowDisputeForm(true)}
+                onOpenChat={() => setChatOpen(true)}
                 estimatedPadiEarnings={estimatedPadiEarnings}
                 isDisputed={isDisputed}
                 isTerminal={isTerminal}
@@ -992,6 +1027,20 @@ export default function ErrandDetailPage({
         isDisputed={isDisputed}
         isTerminal={isTerminal}
       />
+
+      {/* Chat drawer — slides in from the right. Mounted regardless so
+          the slide animation works in both directions. Internally hides
+          when the padi hasn't accepted yet. */}
+      <ChatDrawer
+        open={chatOpen}
+        onClose={() => setChatOpen(false)}
+        errand={errand}
+        connectedWallet={connectedWallet}
+        actions={actions}
+        dispute={dispute}
+        chat={chat}
+        onOpenDispute={() => setShowDisputeForm(true)}
+      />
     </div>
   );
 }
@@ -1010,6 +1059,7 @@ function EscrowCard({
   onReleaseFunds,
   onOpenProof,
   onOpenDispute,
+  onOpenChat,
   estimatedPadiEarnings,
   isDisputed,
   isTerminal,
@@ -1025,6 +1075,7 @@ function EscrowCard({
   onReleaseFunds: () => void;
   onOpenProof: () => void;
   onOpenDispute: () => void;
+  onOpenChat: () => void;
   estimatedPadiEarnings: number;
   isDisputed: boolean;
   isTerminal: boolean;
@@ -1142,13 +1193,14 @@ function EscrowCard({
               not required
             </dd>
           </dl>
-          <a
-            href="#errand-chat"
-            className="mono text-xs uppercase tracking-[0.08em] mt-4 inline-block underline underline-offset-2 press"
+          <button
+            type="button"
+            onClick={onOpenChat}
+            className="mono text-xs uppercase tracking-[0.08em] mt-4 inline-block underline underline-offset-2 press text-left"
             style={{ color: "var(--color-text)" }}
           >
             message {role === "customer" ? "padi" : "requester"} →
-          </a>
+          </button>
         </div>
       )}
 
@@ -1200,6 +1252,10 @@ function StatusTimeline({
           const done = i <= currentStatusRank && !isRefunded;
           const active = i === currentStatusRank && !isRefunded;
           const at = statusTimestamp(errand, actions, step.key);
+          const stepActions = receiptActionsForStep(actions, step);
+          const showEscrowLinks =
+            step.key === "funded" &&
+            (errand.escrowContractId || errand.trustlessEngagementId || errand.escrowId);
 
           return (
             <li
@@ -1262,6 +1318,45 @@ function StatusTimeline({
                 >
                   {at ? formatRelative(at) : done ? "completed" : "pending"}
                 </p>
+                {(showEscrowLinks || stepActions.length > 0) && (
+                  <div className="mt-3 space-y-3">
+                    {showEscrowLinks && (
+                      <div className="space-y-2">
+                        {errand.trustlessEngagementId && (
+                          <TimelineLink
+                            label="engagement"
+                            value={errand.trustlessEngagementId}
+                            href={trustlessWorkViewerUrl(errand.escrowContractId)}
+                          />
+                        )}
+                        {errand.escrowId && errand.escrowId !== errand.trustlessEngagementId && (
+                          <TimelineLink
+                            label="escrow id"
+                            value={errand.escrowId}
+                            href={trustlessWorkViewerUrl(errand.escrowContractId)}
+                          />
+                        )}
+                        {errand.escrowContractId && (
+                          <>
+                            <TimelineLink
+                              label="viewer"
+                              value="open escrow viewer"
+                              href={trustlessWorkViewerUrl(errand.escrowContractId)}
+                            />
+                            <TimelineLink
+                              label="contract"
+                              value={shortAddr(errand.escrowContractId)}
+                              href={stellarExpertContractUrl(errand.escrowContractId)}
+                            />
+                          </>
+                        )}
+                      </div>
+                    )}
+                    {stepActions.map((action) => (
+                      <TimelineActionReceipt key={action.id} action={action} />
+                    ))}
+                  </div>
+                )}
               </div>
             </li>
           );
@@ -1270,6 +1365,75 @@ function StatusTimeline({
       {isRefunded && (
         <p className="mt-3 pt-3 hairline-t mono uppercase text-[0.6875rem] tracking-[0.08em]" style={{ color: "var(--color-text-3)" }}>
           refunded
+        </p>
+      )}
+    </div>
+  );
+}
+
+function TimelineLink({
+  label,
+  value,
+  href,
+}: {
+  label: string;
+  value: string;
+  href: string;
+}) {
+  return (
+    <div>
+      <p className="mono uppercase text-[0.625rem] tracking-[0.08em] leading-tight" style={{ color: "var(--color-text-4)" }}>
+        {label}
+      </p>
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className="mono text-[0.625rem] mt-1 block truncate underline underline-offset-2"
+        style={{ color: "var(--color-text-2)" }}
+      >
+        {value} ↗
+      </a>
+    </div>
+  );
+}
+
+function TimelineActionReceipt({ action }: { action: TrustlessAction }) {
+  return (
+    <div>
+      <p
+        className="mono uppercase text-[0.625rem] tracking-[0.08em] leading-tight"
+        style={{ color: "var(--color-text)" }}
+      >
+        {actionLabel(action.type)}
+      </p>
+      <p
+        className="mono text-[0.625rem] mt-1 leading-tight"
+        style={{ color: "var(--color-text-4)" }}
+      >
+        {new Date(action.submittedAt ?? action.createdAt)
+          .toISOString()
+          .replace("T", " ")
+          .slice(5, 16)}{" "}
+        · {shortAddr(action.signer)} · {action.status.replace("_", " ")}
+      </p>
+      {action.transactionHash && (
+        <a
+          href={stellarExpertTxUrl(action.transactionHash)}
+          target="_blank"
+          rel="noreferrer"
+          className="mono text-[0.625rem] mt-1 block truncate underline underline-offset-2"
+          style={{ color: "var(--color-text-2)" }}
+        >
+          tx {shortAddr(action.transactionHash)} ↗
+        </a>
+      )}
+      {action.errorMessage && (
+        <p
+          className="mono text-[0.625rem] mt-1 leading-tight"
+          style={{ color: "var(--color-risk)" }}
+        >
+          {action.errorMessage}
         </p>
       )}
     </div>
@@ -1439,39 +1603,18 @@ function IdentityCell({
   );
 }
 
-function ReceiptLinkCell({
-  label,
-  value,
-  href,
-}: {
-  label: string;
-  value: string;
-  href: string;
-}) {
-  return (
-    <div className="px-4 py-4 min-w-0" style={{ background: "var(--color-bg)" }}>
-      <p className="eyebrow mb-2">{label}</p>
-      <a
-        href={href}
-        target="_blank"
-        rel="noreferrer"
-        className="mono text-xs break-all underline underline-offset-2"
-        style={{ color: "var(--color-text)" }}
-      >
-        {value} ↗
-      </a>
-    </div>
-  );
-}
-
 function ContactCell({
   label,
   wallet,
+  phone,
+  email,
   visible,
   note,
 }: {
   label: string;
   wallet?: string | null;
+  phone?: string | null;
+  email?: string | null;
   visible: boolean;
   note: string;
 }) {
@@ -1484,6 +1627,20 @@ function ContactCell({
       >
         {visible && wallet ? wallet : "hidden"}
       </p>
+      {visible && (phone || email) && (
+        <div className="mt-3 space-y-1">
+          {phone && (
+            <p className="mono text-xs break-all" style={{ color: "var(--color-text-2)" }}>
+              {phone}
+            </p>
+          )}
+          {email && (
+            <p className="mono text-xs break-all" style={{ color: "var(--color-text-2)" }}>
+              {email}
+            </p>
+          )}
+        </div>
+      )}
       <p className="text-xs mt-2 leading-relaxed" style={{ color: "var(--color-text-3)" }}>
         {note}
       </p>
@@ -1612,17 +1769,31 @@ function ProofForm({
 
 function DisputeForm({
   value,
+  reasonCode,
+  track,
+  evidenceUrl,
   loading,
   onChange,
+  onChangeReasonCode,
+  onChangeTrack,
+  onChangeEvidenceUrl,
   onSubmit,
   onCancel,
 }: {
   value: string;
+  reasonCode: string;
+  track: "fast" | "normal";
+  evidenceUrl: string;
   loading: boolean;
   onChange: (v: string) => void;
+  onChangeReasonCode: (v: string) => void;
+  onChangeTrack: (v: "fast" | "normal") => void;
+  onChangeEvidenceUrl: (v: string) => void;
   onSubmit: (e: React.FormEvent) => void;
   onCancel: () => void;
 }) {
+  const selectedReason = DISPUTE_REASONS.find((reason) => reason.code === reasonCode);
+
   return (
     <form
       onSubmit={onSubmit}
@@ -1633,8 +1804,55 @@ function DisputeForm({
         open dispute
       </p>
       <p className="text-sm mb-4 max-w-[58ch]" style={{ color: "var(--color-text-2)" }}>
-        a resolver will review your reason against the proof and settle the escrow. funds stay locked until resolution.
+        A resolver joins the errand chat after this is submitted. Upload full, uncropped evidence before the review timer ends.
       </p>
+      <p className="eyebrow mb-3">reason</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-5">
+        {DISPUTE_REASONS.map((reason) => {
+          const active = reason.code === reasonCode;
+          return (
+            <button
+              key={reason.code}
+              type="button"
+              onClick={() => onChangeReasonCode(reason.code)}
+              className="mono text-xs uppercase tracking-[0.08em] text-left px-3 py-2 hairline press"
+              style={{
+                borderColor: active ? "var(--color-risk)" : "var(--color-rule)",
+                color: active ? "var(--color-text)" : "var(--color-text-3)",
+                background: active ? "var(--color-bg-2)" : "transparent",
+              }}
+            >
+              {reason.label}
+            </button>
+          );
+        })}
+      </div>
+      <p className="eyebrow mb-3">track</p>
+      <div className="flex flex-wrap gap-3 mb-5">
+        <button
+          type="button"
+          onClick={() => selectedReason?.fast && onChangeTrack("fast")}
+          disabled={!selectedReason?.fast}
+          className="mono text-xs uppercase tracking-[0.08em] px-3 py-2 hairline press disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{
+            borderColor: track === "fast" ? "var(--color-risk)" : "var(--color-rule)",
+            color: track === "fast" ? "var(--color-text)" : "var(--color-text-3)",
+          }}
+        >
+          fast track
+        </button>
+        <button
+          type="button"
+          onClick={() => onChangeTrack("normal")}
+          className="mono text-xs uppercase tracking-[0.08em] px-3 py-2 hairline press"
+          style={{
+            borderColor: track === "normal" ? "var(--color-risk)" : "var(--color-rule)",
+            color: track === "normal" ? "var(--color-text)" : "var(--color-text-3)",
+          }}
+        >
+          normal track
+        </button>
+      </div>
       <label className="block mono text-xs uppercase tracking-[0.08em] mb-2"
              style={{ color: "var(--color-risk)" }}>
         what&apos;s wrong
@@ -1648,6 +1866,31 @@ function DisputeForm({
         className="w-full bg-transparent hairline-b py-2 outline-none text-base leading-relaxed resize-none mb-6"
         style={{ borderColor: "var(--color-risk)", color: "var(--color-text)" }}
       />
+      <label className="block mono text-xs uppercase tracking-[0.08em] mb-2"
+             style={{ color: "var(--color-risk)" }}>
+        evidence link
+      </label>
+      <input
+        type="url"
+        required
+        value={evidenceUrl}
+        onChange={(e) => onChangeEvidenceUrl(e.target.value)}
+        placeholder="https://..."
+        className="w-full bg-transparent hairline-b py-2 outline-none text-sm mb-4 mono"
+        style={{ borderColor: "var(--color-risk)", color: "var(--color-text)" }}
+      />
+      <ul className="mb-6 space-y-1">
+        {[
+          "Use full, unedited screenshots or receipts.",
+          "Do not crop payment, receipt, delivery, or chat evidence.",
+          "Include timestamps, sender/receiver details, and full item photos when relevant.",
+          "Resolver normally reviews within 48 hours if both sides respond.",
+        ].map((item) => (
+          <li key={item} className="text-xs leading-relaxed" style={{ color: "var(--color-text-3)" }}>
+            {item}
+          </li>
+        ))}
+      </ul>
       <div className="flex gap-3">
         <Button type="submit" variant="risk" loading={loading}>
           open dispute

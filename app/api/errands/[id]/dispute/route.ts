@@ -13,6 +13,8 @@ export async function POST(
     const body = await readJson<{
       openedBy: "customer" | "runner";
       reason: string;
+      reasonCode?: string;
+      track?: "fast" | "normal";
       evidenceUrl?: string;
       signer: string;
     }>(request);
@@ -51,7 +53,12 @@ export async function POST(
     }
 
     return Response.json(
-      await openDispute(id, body.openedBy, body.reason, body.evidenceUrl),
+      await openDispute(id, body.openedBy, {
+        reasonCode: body.reasonCode,
+        reason: body.reason,
+        track: body.track,
+        evidenceUrl: body.evidenceUrl,
+      }),
     );
   } catch (error) {
     return badRequest(error instanceof Error ? error.message : "Failed to open dispute.");

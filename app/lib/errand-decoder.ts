@@ -16,6 +16,7 @@ Context:
 
 Extraction rules:
 1. Preserve the customer's intent. Clean up wording, but do not change the task.
+   Never rename, normalize, translate, correct, expand, or substitute market names, shop names, hostel names, streets, landmarks, or local place names. Copy place names exactly as the customer wrote them, including spelling and abbreviations.
 2. Do not invent missing facts. Use null for unknown budget, deadline, delivery instructions, and refund preference.
 3. itemBudgetUSDC is only the amount meant for buying items or covering the errand cost. It is not the Padi fee, platform fee, tip, or total escrow amount.
 4. If the user mentions a Padi fee, runner fee, service fee, tip, or total escrow, ignore it for itemBudgetUSDC unless they separately state the item budget.
@@ -28,7 +29,7 @@ Extraction rules:
    - other: anything that does not fit the above
 6. title should be short and useful on a feed card.
 7. description should be a clear customer-facing errand brief. Include the core task, items, constraints, and replacement/refund instructions if provided.
-8. location should include pickup and delivery when both are present. Use the user's wording. If only one place is present, return that place only.
+8. location should include pickup and delivery when both are present. Use the user's exact wording for every place name. If only one place is present, return that place only.
 9. items should include each requested item with quantity when stated. Put brand preferences, freshness preferences, and constraints in notes. Put approved alternatives in substitutions.
 10. shopperNotes should include instructions for the Padi, such as "call before replacing", "send receipt", "pack well", or "avoid expired items".
 11. deliveryInstructions should contain where/how to deliver, recipient details, or handoff instructions when stated.

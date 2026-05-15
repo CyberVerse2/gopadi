@@ -3,10 +3,13 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema";
 
-let db: PostgresJsDatabase<typeof schema> | undefined;
+const globalForDb = globalThis as typeof globalThis & {
+  gopadiDb?: PostgresJsDatabase<typeof schema>;
+  gopadiSql?: postgres.Sql;
+};
 
 export function getDb() {
-  if (db) return db;
+  if (globalForDb.gopadiDb) return globalForDb.gopadiDb;
 
   const databaseUrl = process.env.DATABASE_URL;
 
@@ -14,11 +17,13 @@ export function getDb() {
     throw new Error("DATABASE_URL is required for GoPadi backend routes.");
   }
 
-  const client = postgres(databaseUrl, {
-    max: 10,
+  const client = globalForDb.gopadiSql ?? postgres(databaseUrl, {
+    idle_timeout: 20,
+    max: 1,
     prepare: false,
   });
 
-  db = drizzle(client, { schema });
-  return db;
+  globalForDb.gopadiSql = client;
+  globalForDb.gopadiDb = drizzle(client, { schema });
+  return globalForDb.gopadiDb;
 }

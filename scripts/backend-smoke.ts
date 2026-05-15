@@ -10,6 +10,8 @@ async function main() {
   const suffix = Date.now();
   const errand = await createErrand({
     customerWallet: `GCUSTOMER${suffix}`,
+    customerPhone: "+2348000000000",
+    customerEmail: `smoke-${suffix}@gopadi.test`,
     title: "Smoke test foodstuff errand",
     description: "Buy rice and oil for backend smoke verification.",
     category: "foodstuff",
@@ -29,7 +31,12 @@ async function main() {
   const proofed = await uploadProof(errand.id, "Receipt and delivery photo verified.");
   if (proofed.status !== "proof_uploaded") throw new Error("Proof transition failed.");
 
-  const disputed = await openDispute(errand.id, "customer", "Smoke dispute.");
+  const disputed = await openDispute(errand.id, "customer", {
+    reasonCode: "proof_rejected",
+    reason: "Smoke dispute.",
+    track: "normal",
+    evidenceUrl: "https://example.com/smoke-evidence",
+  });
   if (disputed.errand.status !== "disputed") throw new Error("Dispute transition failed.");
 
   const resolved = await resolveDispute(disputed.dispute.id, "refund_customer", "Smoke refund.");

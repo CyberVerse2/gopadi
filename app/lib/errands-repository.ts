@@ -3,6 +3,7 @@ import { getDb } from "../db";
 import { disputes, errandMessages, errands } from "../db/schema";
 import type {
   DisputeResolution,
+  DisputeTrack,
   ErrandCategory,
   ErrandItem,
   ErrandStatus,
@@ -16,6 +17,8 @@ import {
 
 export type CreateErrandInput = {
   customerWallet: string;
+  customerPhone: string;
+  customerEmail: string;
   title: string;
   description: string;
   category: ErrandCategory;
@@ -26,11 +29,19 @@ export type CreateErrandInput = {
   items?: ErrandItem[];
 };
 
+export type CreateFundedErrandInput = CreateErrandInput & {
+  runnerWallet: string;
+  adminWallet?: string;
+  escrowId: string;
+  escrowContractId: string;
+  trustlessEngagementId: string;
+};
+
 export async function listErrands(options: { escrowOnly?: boolean } = {}) {
   const query = getDb().select().from(errands);
   const rows = options.escrowOnly
     ? await query.where(isNotNull(errands.escrowContractId)).orderBy(desc(errands.createdAt))
-    : await query.orderBy(desc(errands.createdAt));
+    : await query.where(isNotNull(errands.escrowContractId)).orderBy(desc(errands.createdAt));
   return rows.map(serializeErrand);
 }
 
@@ -39,21 +50,56 @@ export async function findErrand(id: string) {
   return row ? serializeErrand(row) : null;
 }
 
-export async function createErrand(input: CreateErrandInput) {
-  assertPositiveAmount(input.itemBudgetUSDC, "Item budget");
-  assertPositiveAmount(input.runnerFeeUSDC, "Runner fee");
-  if (!input.customerWallet.trim()) throw new Error("Customer wallet is required.");
-  if (!input.title.trim()) throw new Error("Title is required.");
-  if (!input.description.trim()) throw new Error("Description is required.");
-  if (!input.location.trim()) throw new Error("Location is required.");
+export async function createFundedErrand(input: CreateFundedErrandInput) {
+  const total = validateCreateErrandInput(input);
+  if (!input.runnerWallet.trim()) throw new Error("Padi wallet is required.");
+  if (!input.escrowId.trim()) throw new Error("Escrow ID is required.");
+  if (!input.escrowContractId.trim()) throw new Error("Escrow contract ID is required.");
+  if (!input.trustlessEngagementId.trim()) {
+    throw new Error("Trustless Work engagement ID is required.");
+  }
 
   const now = new Date();
-  const total = input.itemBudgetUSDC + input.runnerFeeUSDC;
   const [row] = await getDb()
     .insert(errands)
     .values({
       id: generateId("errand"),
       customerWallet: input.customerWallet,
+      customerPhone: input.customerPhone,
+      customerEmail: input.customerEmail,
+      runnerWallet: input.runnerWallet,
+      adminWallet: input.adminWallet,
+      title: input.title,
+      description: input.description,
+      category: input.category,
+      location: input.location,
+      itemBudgetUSDC: input.itemBudgetUSDC,
+      runnerFeeUSDC: input.runnerFeeUSDC,
+      totalEscrowAmountUSDC: total,
+      items: input.items && input.items.length > 0 ? input.items : undefined,
+      deadline: new Date(input.deadline),
+      escrowId: input.escrowId,
+      escrowContractId: input.escrowContractId,
+      trustlessEngagementId: input.trustlessEngagementId,
+      status: "escrow_funded",
+      createdAt: now,
+      updatedAt: now,
+    })
+    .returning();
+
+  return serializeErrand(row);
+}
+
+export async function createErrand(input: CreateErrandInput) {
+  const total = validateCreateErrandInput(input);
+  const now = new Date();
+  const [row] = await getDb()
+    .insert(errands)
+    .values({
+      id: generateId("errand"),
+      customerWallet: input.customerWallet,
+      customerPhone: input.customerPhone,
+      customerEmail: input.customerEmail,
       title: input.title,
       description: input.description,
       category: input.category,
@@ -69,6 +115,20 @@ export async function createErrand(input: CreateErrandInput) {
     .returning();
 
   return serializeErrand(row);
+}
+
+function validateCreateErrandInput(input: CreateErrandInput) {
+  assertPositiveAmount(input.itemBudgetUSDC, "Item budget");
+  assertPositiveAmount(input.runnerFeeUSDC, "Runner fee");
+  if (!input.customerWallet.trim()) throw new Error("Customer wallet is required.");
+  if (!input.customerPhone.trim()) throw new Error("Phone number is required.");
+  if (!input.customerEmail.trim()) throw new Error("Email is required.");
+  if (!input.customerEmail.includes("@")) throw new Error("Valid email is required.");
+  if (!input.title.trim()) throw new Error("Title is required.");
+  if (!input.description.trim()) throw new Error("Description is required.");
+  if (!input.location.trim()) throw new Error("Location is required.");
+  const total = input.itemBudgetUSDC + input.runnerFeeUSDC;
+  return total;
 }
 
 export async function acceptErrand(id: string, runnerWallet: string) {
@@ -155,10 +215,14 @@ export async function uploadProof(id: string, proofNote: string, proofUrl?: stri
 export async function openDispute(
   id: string,
   openedBy: "customer" | "runner",
-  reason: string,
-  evidenceUrl?: string,
+  input: {
+    reasonCode?: string;
+    reason: string;
+    track?: DisputeTrack;
+    evidenceUrl?: string;
+  },
 ) {
-  if (!reason.trim()) throw new Error("Dispute reason is required.");
+  if (!input.reason.trim()) throw new Error("Dispute reason is required.");
   const errand = await requireErrand(id);
   if (errand.status !== "disputed") {
     throw new Error(
@@ -175,8 +239,10 @@ export async function openDispute(
       id: generateId("dispute"),
       errandId: id,
       openedBy,
-      reason,
-      evidenceUrl,
+      reasonCode: input.reasonCode,
+      reason: input.reason,
+      track: input.track,
+      evidenceUrl: input.evidenceUrl,
       createdAt: new Date(),
     })
     .returning();
@@ -253,19 +319,16 @@ export async function resolveDispute(
 
 export type ChatParticipant = "customer" | "padi" | "resolver";
 
-// Who can read the chat. Hidden entirely until the padi accepts.
 export async function getChatAccess(
   errandId: string,
   wallet: string,
 ): Promise<ChatParticipant | null> {
   const errand = await requireErrand(errandId);
-  if (!errand.runnerWallet) return null; // hidden before acceptance
   if (wallet === errand.customerWallet) return "customer";
-  if (wallet === errand.runnerWallet) return "padi";
   if (wallet === errand.adminWallet && errand.status === "disputed") {
     return "resolver";
   }
-  return null;
+  return "padi";
 }
 
 export async function listErrandMessages(errandId: string, wallet: string) {

@@ -28,6 +28,8 @@ export type ErrandItem = {
 export type Errand = {
   id: string;
   customerWallet: string;
+  customerPhone: string;
+  customerEmail: string;
   runnerWallet?: string;
   adminWallet?: string;
 
@@ -86,12 +88,15 @@ export type ErrandMessage = {
 
 export type DisputeStatus = "open" | "resolved";
 export type DisputeResolution = "release_to_runner" | "refund_customer";
+export type DisputeTrack = "fast" | "normal";
 
 export type Dispute = {
   id: string;
   errandId: string;
   openedBy: "customer" | "runner";
+  reasonCode?: string;
   reason: string;
+  track?: DisputeTrack;
   evidenceUrl?: string;
   status: DisputeStatus;
   resolution?: DisputeResolution;

@@ -53,13 +53,15 @@ export default function ErrandsListPage() {
   useEffect(() => {
     if (!wallet.address) return;
     const myPosts = errands.some((e) => e.customerWallet === wallet.address);
-    if (myPosts) setView("customer");
+    if (!myPosts) return;
+    const t = setTimeout(() => setView("customer"), 0);
+    return () => clearTimeout(t);
   }, [wallet.address, errands]);
 
   const filtered = useMemo(() => {
     let pool = errands;
     if (view === "padi") {
-      pool = pool.filter((e) => e.status === "posted");
+      pool = pool.filter((e) => e.status === "escrow_funded");
     } else {
       pool = pool.filter((e) => e.customerWallet === wallet.address);
     }

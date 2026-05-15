@@ -43,7 +43,7 @@ function shortAddr(value: string) {
 
 export default function Navbar() {
   const pathname = usePathname();
-  const { address, connect, connecting } = useWallet();
+  const { address, connect, connecting, disconnect } = useWallet();
 
   return (
     <header
@@ -83,18 +83,63 @@ export default function Navbar() {
         </nav>
 
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => void connect()}
-            disabled={connecting}
-            className="mono text-xs uppercase tracking-[0.08em] px-3 py-1.5 hairline press disabled:opacity-50"
-            style={{
-              color: address ? "var(--color-text)" : "var(--color-text-2)",
-              background: address ? "var(--color-bg-2)" : "transparent",
-            }}
-          >
-            {address ? shortAddr(address) : connecting ? "connecting…" : "connect wallet"}
-          </button>
+          {address ? (
+            <div
+              className="mono text-xs uppercase tracking-[0.08em] inline-flex items-center hairline"
+              style={{
+                color: "var(--color-text)",
+                background: "var(--color-bg-2)",
+              }}
+            >
+              <span className="px-3 py-1.5">{shortAddr(address)}</span>
+              <button
+                type="button"
+                onClick={disconnect}
+                aria-label="disconnect wallet"
+                title="disconnect wallet"
+                className="press flex items-center justify-center h-full px-2.5 py-1.5 transition-colors"
+                style={{
+                  color: "var(--color-text-3)",
+                  borderLeft: "1px solid var(--color-rule)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = "var(--color-signal)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = "var(--color-text-3)";
+                }}
+              >
+                {/* small × glyph rendered as inline SVG so the stroke
+                    stays crisp at small sizes and matches the hairline
+                    aesthetic */}
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 10 10"
+                  aria-hidden
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                  strokeLinecap="square"
+                >
+                  <path d="M1 1 L9 9 M9 1 L1 9" />
+                </svg>
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void connect()}
+              disabled={connecting}
+              className="mono text-xs uppercase tracking-[0.08em] px-3 py-1.5 hairline press disabled:opacity-50"
+              style={{
+                color: "var(--color-text-2)",
+                background: "transparent",
+              }}
+            >
+              {connecting ? "connecting…" : "connect wallet"}
+            </button>
+          )}
         </div>
       </div>
     </header>

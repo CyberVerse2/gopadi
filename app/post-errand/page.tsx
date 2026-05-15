@@ -8,9 +8,7 @@ import { MoneyDisplay, MoneyInline } from "../components/MoneyDisplay";
 import { useWallet } from "../components/WalletProvider";
 import { DecodedErrand, ErrandCategory } from "../types";
 import {
-  createErrand,
   decodeErrand,
-  getWalletUsdcBalance,
 } from "../lib/api-client";
 
 const CATEGORIES: { value: ErrandCategory; label: string }[] = [
@@ -25,7 +23,6 @@ const CATEGORIES: { value: ErrandCategory; label: string }[] = [
 const RUNNER_FEE_PERCENT = 20;
 const MIN_RUNNER_FEE_USDC = 2;
 const MAX_RUNNER_FEE_USDC = 15;
-
 const STEPS = [
   { idx: 1, label: "task" },
   { idx: 2, label: "place" },
@@ -80,6 +77,8 @@ export default function PostErrandPage() {
     description: "",
     aiBrief: "",
     location: "",
+    customerPhone: "",
+    customerEmail: "",
     itemBudget: "",
     deadline: "",
     deliveryInstructions: "",
@@ -142,7 +141,12 @@ export default function PostErrandPage() {
       return Boolean(form.title.trim()) && Boolean(form.category) && Boolean(form.description.trim());
     }
     if (step === 2) {
-      return Boolean(form.location.trim());
+      return (
+        Boolean(form.location.trim()) &&
+        Boolean(form.customerPhone.trim()) &&
+        Boolean(form.customerEmail.trim()) &&
+        form.customerEmail.includes("@")
+      );
     }
     if (step === 3) {
       return itemBudget > 0 && Boolean(form.deadline);
@@ -156,19 +160,10 @@ export default function PostErrandPage() {
     setError(null);
     try {
       const customerWallet = wallet.address ?? (await wallet.connect());
-      const bal = await getWalletUsdcBalance(customerWallet);
-      if (!bal.hasTrustline) {
-        throw new Error(
-          "this wallet needs the testnet usdc trustline before posting.",
-        );
-      }
-      if (bal.balanceUSDC < total) {
-        throw new Error(
-          `errand needs ${total.toFixed(2)} usdc. wallet has ${bal.balanceUSDC.toFixed(2)}.`,
-        );
-      }
-      const { errand } = await createErrand({
+      const errandInput = {
         customerWallet,
+        customerPhone: form.customerPhone,
+        customerEmail: form.customerEmail,
         title: form.title,
         description: buildErrandBrief(form),
         category: form.category,
@@ -185,8 +180,23 @@ export default function PostErrandPage() {
                 substitutions: it.substitutions,
               }))
             : undefined,
-      });
-      router.push(`/errands/${errand.id}`);
+      };
+
+      window.sessionStorage.setItem(
+        "gopadi:pending-funded-errand",
+        JSON.stringify({
+          errand: errandInput,
+          review: {
+            title: form.title,
+            route: form.location,
+            itemBudgetUSDC: itemBudget,
+            runnerFeeUSDC: runnerFee,
+            totalUSDC: total,
+            deadline: errandInput.deadline,
+          },
+        }),
+      );
+      router.push("/post-errand/matching");
     } catch (e) {
       setError(e instanceof Error ? e.message : "could not post errand.");
     } finally {
@@ -438,6 +448,42 @@ export default function PostErrandPage() {
                 className="block eyebrow mt-8 mb-2"
                 style={{ color: "var(--color-text-3)" }}
               >
+                phone number
+              </label>
+              <input
+                type="tel"
+                placeholder="+234 801 234 5678"
+                value={form.customerPhone}
+                onChange={(e) => set("customerPhone", e.target.value)}
+                className="w-full bg-transparent hairline-b py-2 outline-none text-base"
+                style={{
+                  borderColor: "var(--color-rule-strong)",
+                  color: "var(--color-text)",
+                }}
+              />
+
+              <label
+                className="block eyebrow mt-8 mb-2"
+                style={{ color: "var(--color-text-3)" }}
+              >
+                email
+              </label>
+              <input
+                type="email"
+                placeholder="you@example.com"
+                value={form.customerEmail}
+                onChange={(e) => set("customerEmail", e.target.value)}
+                className="w-full bg-transparent hairline-b py-2 outline-none text-base"
+                style={{
+                  borderColor: "var(--color-rule-strong)",
+                  color: "var(--color-text)",
+                }}
+              />
+
+              <label
+                className="block eyebrow mt-8 mb-2"
+                style={{ color: "var(--color-text-3)" }}
+              >
                 delivery instructions
               </label>
               <textarea
@@ -625,6 +671,16 @@ export default function PostErrandPage() {
                 <dt className="eyebrow self-baseline">route</dt>
                 <dd style={{ color: "var(--color-text)" }}>{form.location || "—"}</dd>
 
+                <dt className="eyebrow self-baseline">phone</dt>
+                <dd className="mono text-sm" style={{ color: "var(--color-text)" }}>
+                  {form.customerPhone || "—"}
+                </dd>
+
+                <dt className="eyebrow self-baseline">email</dt>
+                <dd className="mono text-sm break-all" style={{ color: "var(--color-text)" }}>
+                  {form.customerEmail || "—"}
+                </dd>
+
                 <dt className="eyebrow self-baseline">brief</dt>
                 <dd className="leading-relaxed" style={{ color: "var(--color-text)" }}>
                   {form.aiBrief || form.description || "—"}
@@ -686,6 +742,13 @@ export default function PostErrandPage() {
                   </p>
                 )}
               </div>
+
+              <div className="mt-8 hairline-t pt-5">
+                <p className="eyebrow mb-3">next</p>
+                <p className="text-sm leading-relaxed" style={{ color: "var(--color-text-2)" }}>
+                  GoPadi will find a Padi, verify USDC readiness, then ask you to sign escrow before this errand is listed.
+                </p>
+              </div>
             </section>
           )}
 
@@ -739,7 +802,7 @@ export default function PostErrandPage() {
                 loading={loading}
                 disabled={loading || total <= 0}
               >
-                post errand
+                find Padi
               </Button>
             )}
           </div>

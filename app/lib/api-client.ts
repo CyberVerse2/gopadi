@@ -2,6 +2,7 @@ import type {
   DecodedErrand,
   Dispute,
   DisputeResolution,
+  DisputeTrack,
   Errand,
   ErrandCategory,
   ErrandItem,
@@ -32,6 +33,8 @@ export function listErrands(options: { escrowOnly?: boolean } = {}) {
 
 export function createErrand(input: {
   customerWallet: string;
+  customerPhone: string;
+  customerEmail: string;
   title: string;
   description: string;
   category: ErrandCategory;
@@ -42,6 +45,49 @@ export function createErrand(input: {
   items?: ErrandItem[];
 }) {
   return request<{ errand: Errand }>("/api/errands", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export type FundedErrandInput = {
+  customerWallet: string;
+  customerPhone: string;
+  customerEmail: string;
+  title: string;
+  description: string;
+  category: ErrandCategory;
+  location: string;
+  itemBudgetUSDC: number;
+  runnerFeeUSDC: number;
+  deadline: string;
+  items?: ErrandItem[];
+};
+
+export type FundedErrandCreateResponse =
+  | {
+      step: "sign_deploy";
+      unsignedTransaction: string;
+    }
+  | {
+      step: "sign_fund";
+      contractId: string;
+      deployTransactionHash?: string;
+      unsignedTransaction: string;
+    }
+  | {
+      step: "created";
+      errand: Errand;
+    };
+
+export function createFundedErrand(input: {
+  errand: FundedErrandInput;
+  deploySignedXdr?: string;
+  fundSignedXdr?: string;
+  preparedContractId?: string;
+  deployTransactionHash?: string;
+}) {
+  return request<FundedErrandCreateResponse>("/api/errands/funded", {
     method: "POST",
     body: JSON.stringify(input),
   });
@@ -85,13 +131,17 @@ export function uploadProof(id: string, proofNote: string, signer: string, proof
 export function openDispute(
   id: string,
   openedBy: "customer" | "runner",
-  reason: string,
+  input: {
+    reasonCode?: string;
+    reason: string;
+    track?: DisputeTrack;
+    evidenceUrl?: string;
+  },
   signer: string,
-  evidenceUrl?: string,
 ) {
   return request<{ errand: Errand; dispute: Dispute }>(`/api/errands/${id}/dispute`, {
     method: "POST",
-    body: JSON.stringify({ openedBy, reason, signer, evidenceUrl }),
+    body: JSON.stringify({ openedBy, signer, ...input }),
   });
 }
 

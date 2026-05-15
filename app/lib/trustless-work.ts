@@ -26,6 +26,95 @@ export type TrustlessActionType =
   | "dispute_escrow"
   | "resolve_dispute";
 
+export type TrustlessCreateErrand = Pick<
+  Errand,
+  | "id"
+  | "customerWallet"
+  | "customerPhone"
+  | "customerEmail"
+  | "runnerWallet"
+  | "title"
+  | "description"
+  | "category"
+  | "location"
+  | "itemBudgetUSDC"
+  | "runnerFeeUSDC"
+  | "totalEscrowAmountUSDC"
+  | "deadline"
+  | "items"
+  | "trustlessEngagementId"
+>;
+
+export type PreparedTrustlessTransaction = {
+  endpoint: string;
+  payload: Record<string, unknown>;
+  response: Record<string, unknown>;
+  unsignedTransaction: string;
+};
+
+export async function prepareTrustlessCreateEscrow(
+  errand: TrustlessCreateErrand,
+  signer: string,
+) {
+  const payload = buildPayload(errandForTrustless(errand), "initialize_escrow", {
+    signer,
+  });
+  return prepareTrustlessTransaction("/deployer/single-release", payload);
+}
+
+export async function prepareTrustlessFundEscrow(input: {
+  contractId: string;
+  signer: string;
+  amount: number;
+}) {
+  const payload = {
+    contractId: input.contractId,
+    signer: input.signer,
+    amount: input.amount,
+  };
+  return prepareTrustlessTransaction("/escrow/single-release/fund-escrow", payload);
+}
+
+export async function sendTrustlessSignedTransaction(signedXdr: string) {
+  if (!signedXdr.trim()) throw new Error("Signed XDR is required.");
+  return callTrustlessWork("/helper/send-transaction", { signedXdr });
+}
+
+export function extractTrustlessTransactionHash(response: Record<string, unknown>) {
+  return typeof response.hash === "string"
+    ? response.hash
+    : typeof response.transactionHash === "string"
+      ? response.transactionHash
+      : undefined;
+}
+
+export function extractTrustlessContractId(response: Record<string, unknown>) {
+  return typeof response.contractId === "string"
+    ? response.contractId
+    : typeof response.escrowContractId === "string"
+      ? response.escrowContractId
+      : undefined;
+}
+
+async function prepareTrustlessTransaction(
+  endpoint: string,
+  payload: Record<string, unknown>,
+): Promise<PreparedTrustlessTransaction> {
+  const response = await callTrustlessWork(endpoint, payload);
+  const unsignedTransaction = response.unsignedTransaction;
+
+  if (!unsignedTransaction || typeof unsignedTransaction !== "string") {
+    throw new Error("Trustless Work did not return an unsigned transaction.");
+  }
+
+  return {
+    endpoint,
+    payload,
+    response,
+    unsignedTransaction,
+  };
+}
+
 export async function prepareTrustlessAction(
   errand: Errand,
   type: TrustlessActionType,
@@ -38,12 +127,7 @@ export async function prepareTrustlessAction(
 ) {
   const payload = buildPayload(errand, type, options);
   const endpoint = endpointFor(type);
-  const response = await callTrustlessWork(endpoint, payload);
-  const unsignedTransaction = response.unsignedTransaction;
-
-  if (!unsignedTransaction || typeof unsignedTransaction !== "string") {
-    throw new Error("Trustless Work did not return an unsigned transaction.");
-  }
+  const prepared = await prepareTrustlessTransaction(endpoint, payload);
 
   const [row] = await getDb()
     .insert(trustlessActions)
@@ -53,9 +137,9 @@ export async function prepareTrustlessAction(
       disputeId: options.disputeId,
       type,
       signer: options.signer,
-      unsignedTransaction,
+      unsignedTransaction: prepared.unsignedTransaction,
       requestPayload: payload,
-      responsePayload: response,
+      responsePayload: prepared.response,
     })
     .returning();
 
@@ -85,22 +169,10 @@ export async function submitSignedTrustlessAction(actionId: string, signedXdr: s
   }
 
   try {
-    const response = await callTrustlessWork("/helper/send-transaction", {
-      signedXdr,
-    });
+    const response = await sendTrustlessSignedTransaction(signedXdr);
 
-    const transactionHash =
-      typeof response.hash === "string"
-        ? response.hash
-        : typeof response.transactionHash === "string"
-          ? response.transactionHash
-          : undefined;
-    const contractId =
-      typeof response.contractId === "string"
-        ? response.contractId
-        : typeof response.escrowContractId === "string"
-          ? response.escrowContractId
-          : undefined;
+    const transactionHash = extractTrustlessTransactionHash(response);
+    const contractId = extractTrustlessContractId(response);
 
     const [updated] = await getDb()
       .update(trustlessActions)
@@ -143,6 +215,17 @@ export async function listTrustlessActions(errandId: string) {
     .where(eq(trustlessActions.errandId, errandId))
     .orderBy(desc(trustlessActions.createdAt));
   return rows.map(serializeTrustlessAction);
+}
+
+function errandForTrustless(errand: TrustlessCreateErrand): Errand {
+  const now = new Date().toISOString();
+  return {
+    ...errand,
+    runnerWallet: errand.runnerWallet,
+    status: "accepted",
+    createdAt: now,
+    updatedAt: now,
+  };
 }
 
 function buildPayload(
