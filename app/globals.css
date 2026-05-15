@@ -1,26 +1,201 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* Boogy Brut Poster Black — display face for hero numerals + section
+   markers. Licensed under SIL OFL 1.1 (Velvetyne distribution).
+   Self-hosted; not on Google Fonts. */
+@font-face {
+  font-family: "Boogy Brut Poster";
+  src: url("/fonts/BoogyBrutPosterWEBL-Black.woff2") format("woff2");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-display: "Boogy Brut Poster", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-mona), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geistmono), ui-monospace, "SF Mono", "JetBrains Mono", monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  color-scheme: dark;
+
+  /* Surfaces — near-black canvas, tinted toward 30° (vermillion hue) */
+  --color-bg:    oklch(0.16 0.005 30);
+  --color-bg-2:  oklch(0.19 0.008 30);
+  --color-bg-3:  oklch(0.23 0.010 30);
+
+  /* Rules — hairline borders */
+  --color-rule:        oklch(0.32 0.012 30);
+  --color-rule-strong: oklch(0.42 0.015 30);
+
+  /* Text — bone-white stack, tinted toward signal hue */
+  --color-text:   oklch(0.96 0.008 30);
+  --color-text-2: oklch(0.78 0.012 30);
+  --color-text-3: oklch(0.58 0.010 30);
+  --color-text-4: oklch(0.42 0.008 30);
+
+  /* Signal — vermillion (single hot accent, used scarcely) */
+  --color-signal:      oklch(0.68 0.22 30);
+  --color-signal-hi:   oklch(0.76 0.20 30);
+  --color-signal-soft: oklch(0.28 0.07 30);
+  --color-signal-ink:  oklch(0.18 0.04 30);
+
+  /* Semantic state colors — used only when meaningful, never decorative */
+  --color-ok:        oklch(0.72 0.18 145);
+  --color-ok-soft:   oklch(0.28 0.07 145);
+  --color-warn:      oklch(0.78 0.16 75);
+  --color-warn-soft: oklch(0.28 0.07 75);
+  --color-risk:      oklch(0.62 0.22 18);
+  --color-risk-soft: oklch(0.28 0.08 18);
+
+  /* Spacing — 4pt scale */
+  --space-xs:  0.25rem;  /* 4px  */
+  --space-sm:  0.5rem;   /* 8px  */
+  --space-md:  0.75rem;  /* 12px */
+  --space-lg:  1rem;     /* 16px */
+  --space-xl:  1.5rem;   /* 24px */
+  --space-2xl: 2rem;     /* 32px */
+  --space-3xl: 3rem;     /* 48px */
+  --space-4xl: 4rem;     /* 64px */
+  --space-5xl: 6rem;     /* 96px */
+
+  /* Motion — exponential ease-out only */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out-expo:  cubic-bezier(0.16, 1, 0.3, 1);
+
+  --hairline: 1px;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    background: var(--color-bg);
+    color: var(--color-text);
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-feature-settings: "kern", "liga", "calt";
+    font-variant-numeric: tabular-nums;
+    line-height: 1.55;
+  }
+
+  /* Headings — Mona Sans heavy. Display moments use .display utility. */
+  h1, h2, h3, h4 {
+    font-family: var(--font-sans);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+  }
+
+  /* Selection — signal soft, not the full hot color */
+  ::selection {
+    background: var(--color-signal);
+    color: var(--color-signal-ink);
+  }
+
+  /* Inputs default — transparent fill, hairline border-bottom */
+  input,
+  textarea,
+  select,
+  button {
+    font-family: inherit;
+    color: inherit;
+  }
+
+  /* Hide default outlines; we render our own focus rings. */
+  :focus { outline: none; }
+  :focus-visible {
+    outline: 2px solid var(--color-signal);
+    outline-offset: 2px;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer utilities {
+  /* Industrial stencil display — for hero numerals, section markers, wordmark moments */
+  .display {
+    font-family: var(--font-display);
+    font-weight: 900;
+    letter-spacing: 0;
+    line-height: 0.9;
+    font-feature-settings: "ss01", "kern";
+  }
+
+  /* Tabular sans numerals — for inline numbers in UI labels */
+  .num {
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: "tnum", "lnum";
+    letter-spacing: -0.01em;
+  }
+
+  /* Geist Mono — for facts: amounts, addresses, IDs, hashes, timestamps */
+  .mono {
+    font-family: var(--font-mono);
+    font-feature-settings: "tnum", "ss01";
+    font-variant-numeric: tabular-nums;
+  }
+
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-text-3);
+  }
+
+  .hairline-t { border-top: var(--hairline) solid var(--color-rule); }
+  .hairline-b { border-bottom: var(--hairline) solid var(--color-rule); }
+  .hairline-l { border-left: var(--hairline) solid var(--color-rule); }
+  .hairline-r { border-right: var(--hairline) solid var(--color-rule); }
+  .hairline   { border: var(--hairline) solid var(--color-rule); }
+  .hairline-strong { border: var(--hairline) solid var(--color-rule-strong); }
+
+  /* Subtle vermillion focus tint for interactive rows (rare, earned) */
+  .row-hover { transition: background-color 180ms var(--ease-out-quart); }
+  .row-hover:hover { background-color: var(--color-bg-2); }
+
+  /* Press feedback */
+  .press { transition: transform 150ms var(--ease-out-quart); }
+  .press:active { transform: translateY(1px); }
+
+  /* Generic motion utility for state transitions */
+  .motion-fade-in {
+    animation: fade-in 220ms var(--ease-out-quart) both;
+  }
+  .motion-fade-up {
+    animation: fade-up 320ms var(--ease-out-quint) both;
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translate3d(0, 8px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes signal-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
