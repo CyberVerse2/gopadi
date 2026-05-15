@@ -61,7 +61,9 @@ export default function ErrandsListPage() {
   const filtered = useMemo(() => {
     let pool = errands;
     if (view === "padi") {
-      pool = pool.filter((e) => e.status === "escrow_funded");
+      pool = pool.filter(
+        (e) => e.status === "escrow_funded" || e.runnerWallet === wallet.address,
+      );
     } else {
       pool = pool.filter((e) => e.customerWallet === wallet.address);
     }

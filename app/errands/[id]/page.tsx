@@ -787,6 +787,7 @@ export default function ErrandDetailPage({
               <div className="lg:hidden mt-10 motion-fade-up">
                 <EscrowCard
                   errand={errand}
+                  actions={actions}
                   role={viewerRole}
                   loading={loading}
                   onAccept={handleAccept}
@@ -1004,6 +1005,7 @@ export default function ErrandDetailPage({
             <div className="sticky top-20 motion-fade-up">
               <EscrowCard
                 errand={errand}
+                actions={actions}
                 role={viewerRole}
                 loading={loading}
                 onAccept={handleAccept}
@@ -1061,6 +1063,7 @@ export default function ErrandDetailPage({
 
 function EscrowCard({
   errand,
+  actions,
   role,
   loading,
   onAccept,
@@ -1077,6 +1080,7 @@ function EscrowCard({
   isTerminal,
 }: {
   errand: Errand;
+  actions: TrustlessAction[];
   role: ViewerRole;
   loading: string | null;
   onAccept: () => void;
@@ -1100,6 +1104,18 @@ function EscrowCard({
         : errand.status === "refunded"
           ? "muted"
           : "default";
+  const releaseAction = actions
+    .filter(
+      (item) =>
+        item.status === "submitted" &&
+        Boolean(item.transactionHash) &&
+        (item.type === "release_funds" || item.type === "resolve_dispute"),
+    )
+    .sort(
+      (a, b) =>
+        new Date(b.submittedAt ?? b.createdAt).getTime() -
+        new Date(a.submittedAt ?? a.createdAt).getTime(),
+    )[0];
 
   const action = nextAction({
     errand,
@@ -1135,6 +1151,20 @@ function EscrowCard({
               : "locked in escrow"}
       </p>
       <MoneyDisplay amount={errand.totalEscrowAmountUSDC} size="hero" tone={totalTone as never} />
+
+      {releaseAction?.transactionHash && (
+        <a
+          href={stellarExpertTxUrl(releaseAction.transactionHash)}
+          target="_blank"
+          rel="noreferrer"
+          className="mono text-xs uppercase tracking-[0.08em] mt-4 inline-block underline underline-offset-2 press"
+          style={{ color: "var(--color-ok)" }}
+          title={releaseAction.transactionHash}
+        >
+          {releaseAction.type === "resolve_dispute" ? "resolution" : "release"} tx{" "}
+          {shortAddr(releaseAction.transactionHash)} ↗
+        </a>
+      )}
 
       <dl className="mt-6 hairline-t pt-4 grid grid-cols-[1fr_auto] gap-y-2 text-xs">
         <dt className="mono uppercase tracking-[0.06em]" style={{ color: "var(--color-text-3)" }}>

@@ -204,6 +204,15 @@ export default function ChatPanel({
     setImage({ file, previewUrl: URL.createObjectURL(file) });
   }
 
+  function handlePaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const file = Array.from(e.clipboardData.files).find((item) =>
+      item.type.startsWith("image/"),
+    );
+    if (!file) return;
+    e.preventDefault();
+    handleImageChange(file);
+  }
+
   function clearImage() {
     if (image) URL.revokeObjectURL(image.previewUrl);
     setImage(null);
@@ -463,6 +472,7 @@ export default function ChatPanel({
             rows={3}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
+            onPaste={handlePaste}
             onKeyDown={(e) => {
               if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                 e.preventDefault();
