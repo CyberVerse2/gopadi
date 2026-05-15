@@ -16,7 +16,9 @@ Post an errand. A trusted Padi accepts. Funds stay locked until the job is done.
 
 Everyday errands are still messy, risky, and stressful.
 
-People need help buying foodstuff, fuel, groceries, medicine, or handling local pickups, but both sides face trust issues.
+People need help buying foodstuff, fuel, groceries, medicine, or handling local pickups. The first problem is discovery: where do they find nearby people or Runners who are actually available to help?
+
+Even when they find someone, the second problem is trust. Can they trust that person with their money, their items, and the responsibility of completing the errand properly?
 
 **Customers worry:**
 
@@ -44,6 +46,8 @@ The flow is simple:
 5. Runner uploads proof.
 6. Customer confirms completion.
 7. Funds are released.
+
+If something goes wrong, the customer or Runner can open a dispute for review.
 
 GoPadi makes errands feel safer because neither side has to rely on blind trust.
 
@@ -86,6 +90,7 @@ Go to the live GoPadi app.
 5. Upload proof of completion.
 6. Confirm the errand as the customer.
 7. Show funds ready to be released to the Runner.
+8. Show the dispute option if the customer or Runner disagrees with the outcome.
 
 **Key line**
 
@@ -147,6 +152,7 @@ Local errands already happen every day. The missing layer is trust.
 - A way for Runners to earn
 - Escrow-backed payment protection
 - Proof of completion
+- Disputes when something goes wrong
 - Dispute resolution when needed
 
 **Closing line**

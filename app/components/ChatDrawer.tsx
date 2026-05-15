@@ -60,11 +60,11 @@ export default function ChatDrawer({
 
   return (
     <>
-      {/* Backdrop — only on mobile where the drawer covers the page */}
+      {/* Backdrop — closes the chat when the user clicks outside the drawer. */}
       <div
         aria-hidden
         onClick={onClose}
-        className={`fixed inset-0 z-40 transition-opacity duration-200 lg:hidden ${
+        className={`fixed inset-0 z-40 transition-opacity duration-200 ${
           open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
         }`}
         style={{

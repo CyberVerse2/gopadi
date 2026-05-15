@@ -22,8 +22,11 @@ export const metadata: Metadata = {
   description:
     "Post a local errand in a Nigerian university town. Lock USDC in Trustless Work escrow. Release on completion.",
   icons: {
-    icon: "/gopadi-logo.svg",
-    shortcut: "/gopadi-logo.svg",
+    icon: [
+      { url: "/gopadi-logo.svg", type: "image/svg+xml" },
+      { url: "/gopadi-logo.png", type: "image/png", sizes: "1240x340" },
+    ],
+    shortcut: "/gopadi-logo.png",
   },
 };
 
