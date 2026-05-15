@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 170" role="img" aria-labelledby="title desc">
+  <title id="title">gopadi logo</title>
+  <desc id="desc">A vermillion escrow route mark beside the gopadi wordmark.</desc>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path
+      d="M50 87c0 20 14 34 34 34h36c18 0 28 10 28 28"
+      stroke="#f05a37"
+      stroke-width="14"
+    />
+    <path
+      d="M54 58c20-28 62-34 91-11 28 22 33 63 10 91"
+      stroke="#f05a37"
+      stroke-width="12"
+    />
+    <path
+      d="M87 65l23 23 43-48"
+      stroke="#f05a37"
+      stroke-width="13"
+    />
+    <circle cx="50" cy="87" r="19" fill="#f6eee9" stroke="#f05a37" stroke-width="11" />
+    <circle cx="148" cy="149" r="18" fill="#171211" stroke="#f6eee9" stroke-width="10" />
+  </g>
+  <text
+    x="200"
+    y="112"
+    fill="#f6eee9"
+    font-family="Mona Sans, Avenir Next, Arial Rounded MT Bold, ui-sans-serif, system-ui, sans-serif"
+    font-size="92"
+    font-weight="900"
+    letter-spacing="-3"
+  >gopadi</text>
+  <rect x="565" y="41" width="18" height="18" rx="3" fill="#f05a37" />
+</svg>

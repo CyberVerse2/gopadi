@@ -1,4 +1,4 @@
-# GoPadi Hackathon MVP Product Doc
+# GoPadi Product Document
 
 ## Product Name
 
@@ -6,74 +6,186 @@
 
 ## Tagline
 
-**Local errands protected by escrow.**
+**Local errands protected by Trustless Work escrow.**
 
 ## One-Liner
 
-GoPadi lets users hire trusted local shoppers and errand runners to buy essentials or complete small tasks, with payment locked in **Trustless Work escrow** until the task is completed and confirmed.
+GoPadi is a local errand marketplace where customers hire nearby Padis to buy essentials, pick up items, or complete small tasks, while every payment is protected by **Trustless Work single-release escrow** from funding to final settlement.
+
+## What GoPadi Is
+
+GoPadi turns informal local errands into programmable, escrow-backed transactions.
+
+A customer can post an errand like:
+
+```txt
+Buy 2kg rice, 1L oil, and tomato paste from Ogbete Market.
+Deliver to my hostel before 6PM.
+```
+
+A local Padi accepts the job. The customer does not send money directly to the Padi. Instead, GoPadi creates and funds a **Trustless Work escrow**. The Padi completes the errand, uploads proof, and the customer confirms completion. Only then are funds released.
+
+If something goes wrong, either side can dispute the escrow. A resolver reviews the case and uses Trustless Work dispute resolution to release funds to the Padi or refund the customer.
 
 ## Problem
 
-People often need someone nearby to help them buy things or run errands, such as:
+Local errands depend on trust, but both sides carry risk.
 
-- Buy foodstuff
-- Buy fuel
-- Pick up groceries
-- Buy medicine
-- Deliver a small package
-- Handle a campus or local errand
+Customers worry that a runner may disappear with the money, buy the wrong item, deliver late, or fake proof.
 
-But there is a trust problem.
+Padis worry that a customer may refuse to pay after the work is complete.
 
-The customer is afraid the runner may disappear with the money.
-
-The runner is afraid the customer may refuse to pay after the task is completed.
-
-GoPadi solves this by locking the payment in escrow before the errand starts and releasing it only after completion is confirmed.
+GoPadi solves this by making escrow the default transaction layer. Payment is locked before work begins, and release/refund decisions are enforced through Trustless Work.
 
 ## Target Users
 
 ### Customers
 
-People who are busy, far away, sick, in school, at work, or unable to go out and need someone nearby to help them buy or do something.
+Students, hostel residents, busy parents, workers, traders, and anyone who needs someone nearby to buy, pick up, or deliver something.
 
-### Runners / Padi
+### Padis
 
-Trusted local helpers who accept errands, complete them, upload proof, and get paid.
+Trusted local helpers who accept errands, complete them, upload proof, and get paid after completion or resolver settlement.
 
-### Admin / Resolver
+### Resolver / Admin
 
-A trusted moderator who handles disputes if the customer and runner disagree.
+A trusted moderator who handles disputes and signs Trustless Work dispute-resolution transactions.
 
-## Core MVP Flow
+## Core Flow
 
 ```txt
 Customer posts errand
         ↓
-Runner accepts errand
+Padi accepts errand
         ↓
-Customer funds Trustless Work escrow
+GoPadi prepares Trustless Work escrow creation
         ↓
-Runner completes errand
+Customer signs escrow creation with Freighter
         ↓
-Runner uploads proof
+Customer signs Trustless Work funding transaction
         ↓
-Customer confirms completion
+Padi completes errand and uploads proof
         ↓
-Funds are released to runner
+Customer approves completion
+        ↓
+Customer signs release transaction
+        ↓
+Funds are released to the Padi
 ```
 
-### Dispute Flow
+## Dispute Flow
 
 ```txt
-Customer or runner opens dispute
+Customer or Padi disputes the escrow
         ↓
-Both sides submit evidence
+GoPadi records the local dispute case
         ↓
-Resolver reviews
+Both sides submit evidence through the errand chat/proof flow
         ↓
-Funds are released or refunded
+Resolver reviews the dispute
+        ↓
+Resolver signs Trustless Work resolve_dispute transaction
+        ↓
+Funds are released to the Padi or refunded to the customer
 ```
+
+## Trustless Work Integration
+
+Trustless Work is the core infrastructure layer in GoPadi. The app does not simply display escrow language; it integrates the Trustless Work transaction lifecycle directly into the user flows.
+
+GoPadi uses Trustless Work for:
+
+- Creating a single-release escrow for each accepted errand.
+- Funding the escrow with the full item budget plus Padi fee.
+- Updating milestone status when the Padi completes the errand.
+- Letting the customer approve the completed milestone.
+- Releasing funds to the Padi.
+- Opening an on-chain dispute when either party disagrees.
+- Resolving disputes by distributing funds to the winner.
+- Storing every prepared/submitted Trustless Work action in the local database for auditability.
+
+### Integrated Trustless Work Actions
+
+| GoPadi Moment | Trustless Work Action | Purpose |
+| --- | --- | --- |
+| Customer creates escrow after Padi acceptance | `initialize_escrow` | Deploys a single-release escrow for the errand |
+| Customer locks payment | `fund_escrow` | Funds the escrow with total USDC amount |
+| Padi marks work complete | `change_milestone_status` | Updates the escrow milestone with completion evidence |
+| Customer confirms the work | `approve_milestone` | Approves the completed milestone |
+| Customer releases payment | `release_funds` | Sends escrowed funds to the Padi |
+| Customer or Padi contests the job | `dispute_escrow` | Moves the escrow into dispute |
+| Resolver settles the case | `resolve_dispute` | Releases funds to the Padi or refunds the customer |
+
+### Trustless Work API Endpoints Used
+
+GoPadi prepares and submits transactions through the Trustless Work API:
+
+```txt
+/deployer/single-release
+/escrow/single-release/fund-escrow
+/escrow/single-release/change-milestone-status
+/escrow/single-release/approve-milestone
+/escrow/single-release/release-funds
+/escrow/single-release/dispute-escrow
+/escrow/single-release/resolve-dispute
+/helper/send-transaction
+```
+
+### Escrow Roles
+
+| GoPadi Role | Trustless Work Role |
+| --- | --- |
+| Customer | Funder |
+| Customer | Approver |
+| Customer | Release signer |
+| Padi | Service provider |
+| Padi | Receiver |
+| Resolver/Admin | Dispute resolver |
+| GoPadi | Platform |
+
+### Why Trustless Work Matters
+
+Trustless Work gives GoPadi the product guarantee:
+
+- The customer can fund the job without handing money directly to the Padi.
+- The Padi can start work knowing payment is already locked.
+- Completion requires proof and customer approval.
+- Disputes have a clear resolver path.
+- Settlement is programmable instead of informal.
+- Every important money movement is backed by a signed transaction.
+
+## Stellar and Wallet Integration
+
+GoPadi uses Stellar testnet wallets through Freighter.
+
+The app supports:
+
+- Wallet connection with Freighter.
+- Signing unsigned Trustless Work XDR transactions.
+- Submitting signed XDR through Trustless Work.
+- Checking USDC balances through Stellar Horizon.
+- Verifying whether the customer has the configured USDC trustline.
+
+The payment asset is USDC, configured through the Trustless Work/Stellar trustline settings.
+
+## AI Errand Intake
+
+GoPadi includes AI-assisted intake for messy customer requests.
+
+The customer can write a natural-language errand request, and the app uses OpenAI structured generation to extract:
+
+- title
+- category
+- customer-facing brief
+- pickup/delivery location
+- item budget
+- item checklist
+- delivery instructions
+- substitution/refund rules
+- Padi notes
+- confidence score
+
+This makes errand posting faster while preserving the customer's exact local place names and instructions.
 
 ## MVP Features
 
@@ -81,227 +193,153 @@ Funds are released or refunded
 
 #### Post Errand
 
-Customer can create an errand request with:
+Customers can create an errand with:
 
-- Errand title
-- Description
-- Category
-- Pickup or delivery location
-- Estimated item cost
-- Runner fee
-- Deadline
-- Customer wallet address
+- title
+- description
+- category
+- location
+- item budget
+- Padi fee
+- deadline
+- phone number
+- email address
+- wallet address
+- optional AI-parsed item checklist
 
-Example:
+#### Fund Escrow
+
+After a Padi is matched, the customer signs the Trustless Work escrow creation and funding transactions.
+
+The customer funds:
 
 ```txt
-Buy foodstuff from Ogbete Market
-Budget: 25 USDC
-Runner fee: 5 USDC
-Delivery: My hostel before 6PM
+item budget + Padi fee = total escrow amount
 ```
 
-#### View Errand Status
+#### Track Errand Status
 
-Customer can track the errand timeline:
+Customers can track:
 
 ```txt
-Posted
-Accepted
-Escrow funded
-In progress
-Proof uploaded
-Completed
-Released
+posted
+accepted
+escrow_created
+escrow_funded
+in_progress
+proof_uploaded
+completed
+released
+disputed
+refunded
 ```
 
 #### Confirm Completion
 
-Customer can confirm that the runner completed the task properly.
-
-Confirmation triggers escrow release.
+The customer approves the completed milestone and releases funds through Trustless Work.
 
 #### Open Dispute
 
-Customer can open a dispute if:
+The customer can dispute the escrow if:
 
-- Item was not delivered
-- Wrong item was bought
-- Proof is fake
-- Task was incomplete
-- Runner missed the deadline
+- the item was not delivered
+- the wrong item was bought
+- proof is missing or fake
+- the task was incomplete
+- the Padi missed the deadline
 
-### Runner Features
+### Padi Features
 
 #### Browse Errands
 
-Runner can view open errands.
+Padis can browse escrow-funded errands by category, fee, deadline, and recency.
 
-Each errand card shows:
+Each errand shows:
 
-- Title
-- Location
-- Category
-- Budget
-- Runner fee
-- Deadline
+- title
+- category
+- location
+- item budget
+- Padi fee
+- total escrow amount
+- deadline
+- status
 
-#### Accept Errand
+#### Complete Errand
 
-Runner can accept an errand and become responsible for it.
-
-#### Upload Proof
-
-Runner can upload proof of completion, such as:
-
-- Receipt
-- Photo of item
-- Delivery image
-- Short note
+The Padi completes the errand and submits proof. GoPadi prepares the Trustless Work milestone update so the escrow reflects completion evidence.
 
 #### Get Paid
 
-Runner receives payment after customer confirmation or dispute resolution.
+The Padi receives funds after customer release or resolver settlement.
 
-### Admin Features
+### Resolver Features
 
 #### View Disputes
 
-Admin can see all disputed errands.
+Resolvers can see open dispute cases, linked errands, evidence, chat context, and the current escrow state.
 
 #### Resolve Dispute
 
-Admin can choose:
+Resolvers choose:
 
 ```txt
-Release funds to runner
-Refund customer
+release_to_runner
+refund_customer
 ```
 
-## Trustless Work Integration
-
-GoPadi uses **Trustless Work single-release escrow** for each errand.
-
-### Escrow Roles
-
-| GoPadi Role | Trustless Work Role |
-| --- | --- |
-| Customer | Funder |
-| Runner / Padi | Receiver |
-| Customer | Approver |
-| Admin | Dispute Resolver |
-| GoPadi | Platform |
-
-### Escrow Lifecycle
-
-```txt
-Errand accepted
-        ↓
-Escrow created
-        ↓
-Customer funds escrow
-        ↓
-Runner completes task
-        ↓
-Customer approves
-        ↓
-Funds released to runner
-```
-
-### Why Trustless Work Matters
-
-GoPadi depends on escrow because neither side should have to trust the other blindly.
-
-The customer knows funds will not be released until the task is done.
-
-The runner knows the customer has already locked payment before they start working.
+Then the resolver signs a Trustless Work `resolve_dispute` transaction and records local resolver notes.
 
 ## MVP Pages
 
 ### Landing Page
 
-Purpose: explain GoPadi quickly.
-
-Hero copy:
+Explains the product promise:
 
 ```txt
 Need something done nearby?
-Post an errand, lock payment in escrow, and release funds only when it's completed.
+Post an errand, lock payment in Trustless Work escrow, and release funds only when it is completed.
 ```
 
-Buttons:
+Primary actions:
 
 ```txt
 Post an Errand
-Become a Padi
+Browse Work
 ```
 
 ### Post Errand Page
 
-Form fields:
+Guides the customer through task, place, money, and review steps. AI intake can prefill structured fields from a natural-language errand description.
 
-- Title
-- Category
-- Description
-- Location
-- Item budget
-- Runner fee
-- Deadline
+### Matching and Funding Page
+
+Shows the selected Padi, payment summary, escrow amount, balance checks, and Trustless Work signing steps for escrow creation and funding.
 
 ### Errand Feed
 
-Shows available errands for runners.
-
-Each card:
-
-```txt
-Buy foodstuff
-Location: Nsukka
-Budget: 25 USDC
-Runner fee: 5 USDC
-Deadline: Today, 6PM
-```
+Shows available escrow-funded errands for Padis and customer-owned errands for connected customers.
 
 ### Errand Detail Page
 
-Shows full errand details and action buttons.
+Shows full errand details, status timeline, item checklist, proof, chat, and Trustless Work action buttons based on wallet role and current state.
 
-Possible buttons:
+Possible actions:
 
 ```txt
 Accept Errand
+Create Escrow
 Fund Escrow
-Upload Proof
-Confirm Completion
+Mark Complete
+Approve Completion
+Release Funds
 Open Dispute
-```
-
-### Deal Timeline Page
-
-Main transaction page.
-
-Example timeline:
-
-```txt
-Errand posted
-Runner accepted
-Escrow created
-Customer funded escrow
-Runner uploaded proof
-Customer confirmed
-Funds released
+Resolve Dispute
 ```
 
 ### Resolver Dashboard
 
-Shows disputed errands and evidence.
-
-Actions:
-
-```txt
-Release to Runner
-Refund Customer
-```
+Shows disputes, escrow records, settlement metrics, and resolver actions.
 
 ## Data Model
 
@@ -309,7 +347,10 @@ Refund Customer
 type Errand = {
   id: string;
   customerWallet: string;
+  customerPhone: string;
+  customerEmail: string;
   runnerWallet?: string;
+  adminWallet?: string;
 
   title: string;
   description: string;
@@ -320,10 +361,18 @@ type Errand = {
   runnerFeeUSDC: number;
   totalEscrowAmountUSDC: number;
 
+  items?: Array<{
+    name: string;
+    quantity: string | null;
+    notes: string | null;
+    substitutions: string[];
+  }>;
+
   deadline: string;
 
   escrowId?: string;
   escrowContractId?: string;
+  trustlessEngagementId?: string;
 
   status:
     | "posted"
@@ -335,7 +384,6 @@ type Errand = {
     | "completed"
     | "released"
     | "disputed"
-    | "resolved"
     | "refunded";
 
   proofUrl?: string;
@@ -347,11 +395,39 @@ type Errand = {
 ```
 
 ```ts
+type TrustlessAction = {
+  id: string;
+  errandId: string;
+  disputeId?: string;
+  type:
+    | "initialize_escrow"
+    | "fund_escrow"
+    | "change_milestone_status"
+    | "approve_milestone"
+    | "release_funds"
+    | "dispute_escrow"
+    | "resolve_dispute";
+  status: "pending_signature" | "submitted" | "failed";
+  signer: string;
+  unsignedTransaction: string;
+  signedXdr?: string;
+  transactionHash?: string;
+  requestPayload: unknown;
+  responsePayload?: unknown;
+  errorMessage?: string;
+  createdAt: string;
+  submittedAt?: string;
+};
+```
+
+```ts
 type Dispute = {
   id: string;
   errandId: string;
   openedBy: "customer" | "runner";
+  reasonCode?: string;
   reason: string;
+  track?: "fast" | "normal";
   evidenceUrl?: string;
   status: "open" | "resolved";
   resolution?: "release_to_runner" | "refund_customer";
@@ -365,86 +441,95 @@ type Dispute = {
 
 ### Must Build
 
-1. Landing page
-2. Post errand form
-3. Errand feed
-4. Accept errand
-5. Create escrow
-6. Fund escrow
-7. Upload proof
-8. Confirm completion
-9. Release funds
-10. Basic timeline
+1. Post errand flow
+2. AI errand intake
+3. Padi matching
+4. Trustless Work escrow creation
+5. Trustless Work escrow funding
+6. Stellar/Freighter signing
+7. USDC balance and trustline checks
+8. Proof upload
+9. Milestone approval
+10. Fund release
+11. Dispute opening
+12. Resolver settlement
+13. Trustless Work action audit trail
 
 ### Should Build
 
-1. Dispute flow
-2. Resolver dashboard
+1. Resolver dashboard metrics
+2. Chat and evidence thread
 3. Seeded demo errands
-4. Status badges
+4. Status badges and timeline
+5. Live smoke scripts for escrow and dispute flows
 
-### Skip for Hackathon
+### Not In MVP
 
-1. Real delivery tracking
+1. Native mobile apps
 2. Full KYC
-3. Real fiat payments
-4. Complex runner ratings
-5. Mobile app
-6. Multi-location routing
-7. Production-grade verification
+3. Fiat payment rails
+4. Complex Padi ratings
+5. Real-time delivery tracking
+6. Multi-stop route optimization
 
 ## Demo Script
 
-### Successful Errand Demo
+### Successful Escrow Demo
 
-1. Customer posts an errand:
-
-```txt
-Buy foodstuff from the market.
-Budget: 25 USDC.
-Runner fee: 5 USDC.
-```
-
-2. Runner opens the errand feed and accepts it.
-3. GoPadi creates a Trustless Work escrow.
-4. Customer funds escrow with 30 USDC.
-5. Runner uploads receipt/photo proof.
-6. Customer confirms completion.
-7. Funds are released to runner.
-8. Timeline shows the full transaction trail.
+1. Customer writes a natural-language errand.
+2. AI intake extracts title, category, items, location, and item budget.
+3. Customer reviews the total amount.
+4. GoPadi matches a Padi.
+5. GoPadi prepares Trustless Work `initialize_escrow`.
+6. Customer signs the escrow creation transaction with Freighter.
+7. GoPadi prepares Trustless Work `fund_escrow`.
+8. Customer signs the funding transaction.
+9. Padi completes the errand and uploads proof.
+10. GoPadi prepares `change_milestone_status`.
+11. Customer approves the milestone with `approve_milestone`.
+12. Customer releases funds with `release_funds`.
+13. Timeline shows the full escrow transaction trail.
 
 ### Dispute Demo
 
-1. Customer posts another errand.
-2. Runner accepts and escrow is funded.
-3. Runner uploads proof.
-4. Customer opens dispute:
-
-```txt
-Wrong items were delivered.
-```
-
-5. Admin views evidence.
-6. Admin resolves by refunding customer or releasing funds to runner.
+1. Customer funds another errand through Trustless Work escrow.
+2. Padi uploads proof.
+3. Customer disputes the job with `dispute_escrow`.
+4. GoPadi opens the local dispute case.
+5. Resolver reviews the evidence.
+6. Resolver signs `resolve_dispute`.
+7. Funds are either released to the Padi or refunded to the customer.
+8. GoPadi records resolver notes and final state.
 
 ## Success Criteria
 
-The MVP is successful if judges can see:
+The MVP is successful if judges can see this complete Trustless Work-powered flow:
 
 ```txt
 Post errand
-→ Accept errand
+→ Match Padi
+→ Create Trustless Work escrow
 → Fund escrow
 → Complete task
 → Upload proof
-→ Confirm
-→ Release payment
+→ Approve milestone
+→ Release funds
 ```
 
-And understand that Trustless Work is the core trust layer of the product.
+And this dispute path:
+
+```txt
+Fund escrow
+→ Dispute escrow
+→ Resolver reviews evidence
+→ Resolve dispute
+→ Release or refund
+```
 
 ## Final Hackathon Pitch
 
-**GoPadi** is an escrow-powered local errand marketplace. Customers post errands like buying foodstuff, fuel, groceries, or medicine. A trusted local runner accepts the task, but payment is not sent directly. Instead, the customer locks funds in Trustless Work escrow. The runner completes the task and uploads proof. Once the customer confirms completion, funds are released.
+**GoPadi** is a Trustless Work-powered errand marketplace for local communities. Customers post errands like buying foodstuff, fuel, groceries, medicine, or handling campus deliveries. A local Padi accepts the job, but payment is not sent directly. Instead, GoPadi creates and funds a Trustless Work single-release escrow.
 
-GoPadi protects customers from disappearing runners and protects runners from customers who refuse to pay after work is done. It turns informal local errands into trusted, programmable transactions.
+The Padi completes the task and uploads proof. The customer approves completion and releases funds. If there is a disagreement, either side can dispute the escrow, and a resolver settles the case through Trustless Work dispute resolution.
+
+GoPadi protects customers from disappearing runners and protects Padis from unpaid work. Trustless Work turns informal errands into signed, auditable, programmable transactions.

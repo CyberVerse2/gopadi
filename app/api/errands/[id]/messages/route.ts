@@ -34,11 +34,18 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const body = await readJson<{ body: string; authorWallet: string }>(request);
+    const body = await readJson<{
+      body: string;
+      authorWallet: string;
+      imageUrl?: string;
+      imageName?: string;
+    }>(request);
     const message = await createErrandMessage({
       errandId: id,
       authorWallet: body.authorWallet,
-      body: body.body,
+      body: body.body ?? "",
+      imageUrl: body.imageUrl,
+      imageName: body.imageName,
     });
     return Response.json({ message }, { status: 201 });
   } catch (error) {

@@ -143,6 +143,8 @@ export const errandMessages = pgTable(
       .references(() => errands.id, { onDelete: "cascade" }),
     authorWallet: text("author_wallet").notNull(),
     body: text("body").notNull(),
+    imageUrl: text("image_url"),
+    imageName: text("image_name"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

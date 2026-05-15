@@ -176,11 +176,31 @@ export function postErrandMessage(
   id: string,
   body: string,
   authorWallet: string,
+  image?: { url: string; name?: string },
 ) {
   return request<{ message: ErrandMessage }>(`/api/errands/${id}/messages`, {
     method: "POST",
-    body: JSON.stringify({ body, authorWallet }),
+    body: JSON.stringify({
+      body,
+      authorWallet,
+      imageUrl: image?.url,
+      imageName: image?.name,
+    }),
   });
+}
+
+export async function uploadChatImage(file: File) {
+  const formData = new FormData();
+  formData.append("image", file);
+  const response = await fetch("/api/uploads/chat", {
+    method: "POST",
+    body: formData,
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(typeof body.error === "string" ? body.error : "Upload failed.");
+  }
+  return body as { url: string; name: string };
 }
 
 export function prepareTrustlessAction(input: {

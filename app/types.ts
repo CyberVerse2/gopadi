@@ -83,6 +83,8 @@ export type ErrandMessage = {
   errandId: string;
   authorWallet: string;
   body: string;
+  imageUrl?: string;
+  imageName?: string;
   createdAt: string;
 };
 

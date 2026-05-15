@@ -16,7 +16,7 @@ export type ChatState = {
   loading: boolean;
   error: string | null;
   unread: number;
-  post: (body: string) => Promise<void>;
+  post: (body: string, image?: { url: string; name?: string }) => Promise<void>;
   refresh: () => Promise<void>;
   markAllSeen: () => void;
 };
@@ -109,11 +109,11 @@ export function useErrandChat(
   }, [storageKey, messages, lastSeenAt]);
 
   const post = useCallback(
-    async (body: string) => {
+    async (body: string, image?: { url: string; name?: string }) => {
       if (!wallet) throw new Error("Wallet not connected.");
       const trimmed = body.trim();
-      if (!trimmed) return;
-      await postErrandMessage(errandId, trimmed, wallet);
+      if (!trimmed && !image?.url) return;
+      await postErrandMessage(errandId, trimmed, wallet, image);
       await refresh();
     },
     [errandId, wallet, refresh],

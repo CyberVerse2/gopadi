@@ -62,6 +62,8 @@ export function serializeErrandMessage(row: ErrandMessageRow): ErrandMessage {
     errandId: row.errandId,
     authorWallet: row.authorWallet,
     body: row.body,
+    imageUrl: row.imageUrl ?? undefined,
+    imageName: row.imageName ?? undefined,
     createdAt: row.createdAt.toISOString(),
   };
 }

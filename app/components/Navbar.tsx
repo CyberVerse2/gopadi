@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useWallet } from "./WalletProvider";
 
@@ -17,24 +18,39 @@ export function Wordmark({
   withMark?: boolean;
 }) {
   const sizes = {
-    sm: "text-sm",
-    md: "text-base",
-    lg: "text-xl",
+    sm: { width: 92, height: 25 },
+    md: { width: 118, height: 32 },
+    lg: { width: 154, height: 42 },
   } as const;
   return (
-    <span
-      className={`mono ${sizes[size]} tracking-tight`}
-      style={{ color: "var(--color-text)" }}
-      aria-label="gopadi"
-    >
-      <span style={{ color: "var(--color-text-3)" }}>/</span>
-      <span style={{ fontWeight: 600 }}>gopadi</span>
-    </span>
+    <Image
+      src="/gopadi-logo.svg"
+      alt="gopadi"
+      width={sizes[size].width}
+      height={sizes[size].height}
+      className="block"
+      style={{ height: sizes[size].height, width: sizes[size].width }}
+    />
   );
 }
 
-export function LogoMark(_: { size?: number; className?: string }) {
-  return null;
+export function LogoMark({ size = 28, className = "" }: { size?: number; className?: string }) {
+  return (
+    <Image
+      src="/gopadi-logo.svg"
+      alt=""
+      aria-hidden="true"
+      width={size}
+      height={size}
+      className={className}
+      style={{
+        width: size,
+        height: size,
+        objectFit: "cover",
+        objectPosition: "left center",
+      }}
+    />
+  );
 }
 
 function shortAddr(value: string) {

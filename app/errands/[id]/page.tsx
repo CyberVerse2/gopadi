@@ -486,11 +486,11 @@ export default function ErrandDetailPage({
           ← back to errands
         </Link>
 
-        <div className="lg:grid lg:grid-cols-[140px_minmax(0,1fr)_300px] lg:gap-x-8 xl:gap-x-12 lg:items-start">
+        <div className="lg:grid lg:grid-cols-[180px_minmax(0,1fr)_300px] lg:gap-x-8 xl:gap-x-12 lg:items-start">
 
           {/* LEFT RAIL — vertical timeline (lg+ only, sticky) */}
-          <aside className="hidden lg:block">
-            <div className="sticky top-20 pt-1">
+          <aside className="hidden lg:block min-w-0">
+            <div className="sticky top-20 pt-1 min-w-0 overflow-hidden">
               <StatusTimeline
                 errand={errand}
                 actions={actions}
@@ -860,6 +860,17 @@ export default function ErrandDetailPage({
                 evidence · {dispute.evidenceUrl}
               </a>
             )}
+            {errand.escrowContractId && (
+              <a
+                href={trustlessWorkViewerUrl(errand.escrowContractId)}
+                target="_blank"
+                rel="noreferrer"
+                className="mono text-xs break-all mt-3 ml-0 sm:ml-4 inline-block underline underline-offset-2"
+                style={{ color: "var(--color-text)" }}
+              >
+                escrow viewer · {shortAddr(errand.escrowContractId)} ↗
+              </a>
+            )}
             <p className="mt-4 text-sm" style={{ color: "var(--color-text-2)" }}>
               a resolver will review the evidence and settle the escrow shortly.{" "}
               <Link
@@ -918,6 +929,7 @@ export default function ErrandDetailPage({
             reasonCode={disputeReasonCode}
             track={disputeTrack}
             evidenceUrl={disputeEvidenceUrl}
+            openedBy={viewerRole === "padi" ? "runner" : "customer"}
             loading={loading === "dispute"}
             onChange={setDisputeReason}
             onChangeReasonCode={(code) => {
@@ -962,12 +974,12 @@ export default function ErrandDetailPage({
           <IdentityCell
             label="customer"
             wallet={errand.customerWallet}
-            isMe={viewerRole === "customer"}
+            connectedWallet={connectedWallet}
           />
           <IdentityCell
             label="padi"
             wallet={errand.runnerWallet}
-            isMe={viewerRole === "padi"}
+            connectedWallet={connectedWallet}
           />
         </section>
 
@@ -1319,37 +1331,19 @@ function StatusTimeline({
                   {at ? formatRelative(at) : done ? "completed" : "pending"}
                 </p>
                 {(showEscrowLinks || stepActions.length > 0) && (
-                  <div className="mt-3 space-y-3">
-                    {showEscrowLinks && (
-                      <div className="space-y-2">
-                        {errand.trustlessEngagementId && (
-                          <TimelineLink
-                            label="engagement"
-                            value={errand.trustlessEngagementId}
-                            href={trustlessWorkViewerUrl(errand.escrowContractId)}
-                          />
-                        )}
-                        {errand.escrowId && errand.escrowId !== errand.trustlessEngagementId && (
-                          <TimelineLink
-                            label="escrow id"
-                            value={errand.escrowId}
-                            href={trustlessWorkViewerUrl(errand.escrowContractId)}
-                          />
-                        )}
-                        {errand.escrowContractId && (
-                          <>
-                            <TimelineLink
-                              label="viewer"
-                              value="open escrow viewer"
-                              href={trustlessWorkViewerUrl(errand.escrowContractId)}
-                            />
-                            <TimelineLink
-                              label="contract"
-                              value={shortAddr(errand.escrowContractId)}
-                              href={stellarExpertContractUrl(errand.escrowContractId)}
-                            />
-                          </>
-                        )}
+                  <div className="mt-3 space-y-3 min-w-0">
+                    {showEscrowLinks && errand.escrowContractId && (
+                      <div className="space-y-2 min-w-0">
+                        <TimelineLink
+                          label="viewer"
+                          value="open in viewer"
+                          href={trustlessWorkViewerUrl(errand.escrowContractId)}
+                        />
+                        <TimelineLink
+                          label="contract"
+                          value={shortAddr(errand.escrowContractId)}
+                          href={stellarExpertContractUrl(errand.escrowContractId)}
+                        />
                       </div>
                     )}
                     {stepActions.map((action) => (
@@ -1381,7 +1375,7 @@ function TimelineLink({
   href: string;
 }) {
   return (
-    <div>
+    <div className="min-w-0">
       <p className="mono uppercase text-[0.625rem] tracking-[0.08em] leading-tight" style={{ color: "var(--color-text-4)" }}>
         {label}
       </p>
@@ -1389,6 +1383,7 @@ function TimelineLink({
         href={href}
         target="_blank"
         rel="noreferrer"
+        title={value}
         className="mono text-[0.625rem] mt-1 block truncate underline underline-offset-2"
         style={{ color: "var(--color-text-2)" }}
       >
@@ -1399,23 +1394,31 @@ function TimelineLink({
 }
 
 function TimelineActionReceipt({ action }: { action: TrustlessAction }) {
+  const ts = new Date(action.submittedAt ?? action.createdAt)
+    .toISOString()
+    .replace("T", " ")
+    .slice(5, 16);
   return (
-    <div>
+    <div className="min-w-0">
       <p
-        className="mono uppercase text-[0.625rem] tracking-[0.08em] leading-tight"
+        className="mono uppercase text-[0.625rem] tracking-[0.08em] leading-tight truncate"
         style={{ color: "var(--color-text)" }}
+        title={actionLabel(action.type)}
       >
         {actionLabel(action.type)}
       </p>
       <p
-        className="mono text-[0.625rem] mt-1 leading-tight"
+        className="mono text-[0.625rem] mt-1 leading-tight truncate"
         style={{ color: "var(--color-text-4)" }}
       >
-        {new Date(action.submittedAt ?? action.createdAt)
-          .toISOString()
-          .replace("T", " ")
-          .slice(5, 16)}{" "}
-        · {shortAddr(action.signer)} · {action.status.replace("_", " ")}
+        {ts}
+      </p>
+      <p
+        className="mono text-[0.625rem] leading-tight truncate"
+        style={{ color: "var(--color-text-4)" }}
+        title={action.signer}
+      >
+        by {shortAddr(action.signer)}
       </p>
       {action.transactionHash && (
         <a
@@ -1424,6 +1427,7 @@ function TimelineActionReceipt({ action }: { action: TrustlessAction }) {
           rel="noreferrer"
           className="mono text-[0.625rem] mt-1 block truncate underline underline-offset-2"
           style={{ color: "var(--color-text-2)" }}
+          title={action.transactionHash}
         >
           tx {shortAddr(action.transactionHash)} ↗
         </a>
@@ -1571,12 +1575,14 @@ function nextAction({
 function IdentityCell({
   label,
   wallet,
-  isMe,
+  connectedWallet,
 }: {
   label: string;
   wallet?: string | null;
-  isMe?: boolean;
+  connectedWallet?: string | null;
 }) {
+  const isMe = Boolean(wallet && connectedWallet && wallet === connectedWallet);
+
   return (
     <div
       className="px-5 py-5"
@@ -1772,6 +1778,7 @@ function DisputeForm({
   reasonCode,
   track,
   evidenceUrl,
+  openedBy,
   loading,
   onChange,
   onChangeReasonCode,
@@ -1784,6 +1791,7 @@ function DisputeForm({
   reasonCode: string;
   track: "fast" | "normal";
   evidenceUrl: string;
+  openedBy: "customer" | "runner";
   loading: boolean;
   onChange: (v: string) => void;
   onChangeReasonCode: (v: string) => void;
@@ -1793,6 +1801,7 @@ function DisputeForm({
   onCancel: () => void;
 }) {
   const selectedReason = DISPUTE_REASONS.find((reason) => reason.code === reasonCode);
+  const evidenceRequired = openedBy === "runner";
 
   return (
     <form
@@ -1804,7 +1813,7 @@ function DisputeForm({
         open dispute
       </p>
       <p className="text-sm mb-4 max-w-[58ch]" style={{ color: "var(--color-text-2)" }}>
-        A resolver joins the errand chat after this is submitted. Upload full, uncropped evidence before the review timer ends.
+        A resolver joins the errand chat after this is submitted. Add a clear reason now; upload photos, receipts, or chat screenshots when they exist.
       </p>
       <p className="eyebrow mb-3">reason</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-5">
@@ -1868,24 +1877,31 @@ function DisputeForm({
       />
       <label className="block mono text-xs uppercase tracking-[0.08em] mb-2"
              style={{ color: "var(--color-risk)" }}>
-        evidence link
+        evidence link {evidenceRequired ? "" : "optional"}
       </label>
       <input
         type="url"
-        required
+        required={evidenceRequired}
         value={evidenceUrl}
         onChange={(e) => onChangeEvidenceUrl(e.target.value)}
-        placeholder="https://..."
+        placeholder={evidenceRequired ? "https://..." : "receipt, photo, or chat screenshot link if you have one"}
         className="w-full bg-transparent hairline-b py-2 outline-none text-sm mb-4 mono"
         style={{ borderColor: "var(--color-risk)", color: "var(--color-text)" }}
       />
       <ul className="mb-6 space-y-1">
-        {[
-          "Use full, unedited screenshots or receipts.",
-          "Do not crop payment, receipt, delivery, or chat evidence.",
-          "Include timestamps, sender/receiver details, and full item photos when relevant.",
-          "Resolver normally reviews within 48 hours if both sides respond.",
-        ].map((item) => (
+        {(openedBy === "customer"
+          ? [
+              "For missing items, describe exactly what is missing and what you expected.",
+              "Evidence is optional now; add full screenshots, receipts, or item photos later if you get them.",
+              "Do not crop payment, receipt, delivery, or chat evidence when you do upload it.",
+              "Resolver normally reviews within 48 hours if both sides respond.",
+            ]
+          : [
+              "Use full, unedited screenshots, receipts, delivery photos, or handoff proof.",
+              "Do not crop payment, receipt, delivery, or chat evidence.",
+              "Include timestamps, sender/receiver details, and full item photos when relevant.",
+              "Resolver normally reviews within 48 hours if both sides respond.",
+            ]).map((item) => (
           <li key={item} className="text-xs leading-relaxed" style={{ color: "var(--color-text-3)" }}>
             {item}
           </li>

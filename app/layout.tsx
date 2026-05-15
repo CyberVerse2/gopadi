@@ -21,6 +21,10 @@ export const metadata: Metadata = {
   title: "gopadi // local errands, escrowed",
   description:
     "Post a local errand in a Nigerian university town. Lock USDC in Trustless Work escrow. Release on completion.",
+  icons: {
+    icon: "/gopadi-logo.svg",
+    shortcut: "/gopadi-logo.svg",
+  },
 };
 
 export default function RootLayout({

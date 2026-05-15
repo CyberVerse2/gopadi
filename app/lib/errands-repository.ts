@@ -346,9 +346,13 @@ export async function createErrandMessage(input: {
   errandId: string;
   authorWallet: string;
   body: string;
+  imageUrl?: string;
+  imageName?: string;
 }) {
   if (!input.authorWallet.trim()) throw new Error("Author wallet is required.");
-  if (!input.body.trim()) throw new Error("Message body is required.");
+  if (!input.body.trim() && !input.imageUrl?.trim()) {
+    throw new Error("Message body or image is required.");
+  }
   if (input.body.length > 2000) throw new Error("Message is too long.");
   const access = await getChatAccess(input.errandId, input.authorWallet);
   if (!access) throw new Error("Only the customer, padi, or resolver can post.");
@@ -360,6 +364,8 @@ export async function createErrandMessage(input: {
       errandId: input.errandId,
       authorWallet: input.authorWallet,
       body: input.body.trim(),
+      imageUrl: input.imageUrl?.trim() || null,
+      imageName: input.imageName?.trim() || null,
       createdAt: new Date(),
     })
     .returning();

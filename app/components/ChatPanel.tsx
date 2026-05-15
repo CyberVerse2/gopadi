@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import type { Errand, ErrandMessage, TrustlessAction, Dispute } from "../types";
+import { uploadChatImage } from "../lib/api-client";
 import Button from "./Button";
 import type { ChatState } from "./useErrandChat";
 
@@ -162,26 +163,51 @@ export default function ChatPanel({
 }: Props) {
   const { messages, access, loading, error, post } = chat;
   const [draft, setDraft] = useState("");
+  const [image, setImage] = useState<{ file: File; previewUrl: string } | null>(null);
   const [posting, setPosting] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
 
   async function handlePost(e: React.FormEvent) {
     e.preventDefault();
     if (!connectedWallet) return;
     const body = draft.trim();
-    if (!body) return;
+    if (!body && !image) return;
     setPosting(true);
     setPostError(null);
     try {
-      await post(body);
+      const uploaded = image ? await uploadChatImage(image.file) : undefined;
+      await post(body, uploaded);
       setDraft("");
+      clearImage();
       composerRef.current?.focus();
     } catch (e) {
       setPostError(e instanceof Error ? e.message : "Failed to send.");
     } finally {
       setPosting(false);
     }
+  }
+
+  function handleImageChange(file: File | undefined) {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setPostError("Choose an image file.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setPostError("Image must be 5MB or smaller.");
+      return;
+    }
+    if (image) URL.revokeObjectURL(image.previewUrl);
+    setPostError(null);
+    setImage({ file, previewUrl: URL.createObjectURL(file) });
+  }
+
+  function clearImage() {
+    if (image) URL.revokeObjectURL(image.previewUrl);
+    setImage(null);
+    if (imageInputRef.current) imageInputRef.current.value = "";
   }
 
   const tsOf = (e: Entry) => (e.kind === "message" ? e.createdAt : e.at);
@@ -195,6 +221,7 @@ export default function ChatPanel({
     !dispute &&
     (access === "customer" || access === "padi") &&
     ["escrow_funded", "in_progress", "proof_uploaded", "completed"].includes(errand.status);
+  const showPadiEvidencePrompt = Boolean(dispute && access === "padi");
 
   if (!connectedWallet) {
     return (
@@ -237,6 +264,31 @@ export default function ChatPanel({
           </button>
         )}
       </div>
+
+      {showPadiEvidencePrompt && (
+        <div
+          className="mb-5 hairline px-4 py-3"
+          style={{
+            borderColor: "var(--color-risk)",
+            background: "var(--color-risk-soft)",
+          }}
+        >
+          <p
+            className="mono text-xs uppercase tracking-[0.08em]"
+            style={{ color: "var(--color-risk)" }}
+          >
+            dispute evidence needed
+          </p>
+          <p className="text-sm leading-relaxed mt-2" style={{ color: "var(--color-text)" }}>
+            Upload or paste proof in this chat for the resolver: receipt, purchased item photos,
+            delivery photo, handoff note, and any messages that explain substitutions or blockers.
+          </p>
+          <p className="text-xs leading-relaxed mt-2" style={{ color: "var(--color-text-3)" }}>
+            Use full, unedited images or links. Do not crop receipts, payment details, timestamps,
+            or delivery context.
+          </p>
+        </div>
+      )}
 
       {events.length === 0 && !loading ? (
         <div className="py-8">
@@ -322,6 +374,34 @@ export default function ChatPanel({
                 >
                   {entry.body}
                 </p>
+                {entry.imageUrl && (
+                  <a
+                    href={entry.imageUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-3 block"
+                    aria-label={entry.imageName ? `open ${entry.imageName}` : "open attached image"}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={entry.imageUrl}
+                      alt={entry.imageName ?? "chat attachment"}
+                      className="max-h-72 w-full object-cover hairline"
+                      style={{
+                        borderColor: "var(--color-rule-strong)",
+                        borderRadius: 8,
+                      }}
+                    />
+                    {entry.imageName && (
+                      <span
+                        className="mono text-[0.625rem] mt-1 block truncate"
+                        style={{ color: "var(--color-text-4)" }}
+                      >
+                        {entry.imageName}
+                      </span>
+                    )}
+                  </a>
+                )}
               </li>
             );
           })}
@@ -348,6 +428,36 @@ export default function ChatPanel({
           >
             send a message
           </label>
+          {image && (
+            <div
+              className="mb-3 hairline p-2"
+              style={{ borderColor: "var(--color-rule-strong)", borderRadius: 8 }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={image.previewUrl}
+                alt="selected attachment preview"
+                className="max-h-48 w-full object-cover"
+                style={{ borderRadius: 6 }}
+              />
+              <div className="mt-2 flex items-center gap-3">
+                <span
+                  className="mono text-[0.625rem] truncate"
+                  style={{ color: "var(--color-text-3)" }}
+                >
+                  {image.file.name}
+                </span>
+                <button
+                  type="button"
+                  onClick={clearImage}
+                  className="mono text-[0.625rem] uppercase tracking-[0.08em] underline underline-offset-2 ml-auto"
+                  style={{ color: "var(--color-risk)" }}
+                >
+                  remove
+                </button>
+              </div>
+            </div>
+          )}
           <textarea
             ref={composerRef}
             rows={3}
@@ -361,7 +471,9 @@ export default function ChatPanel({
             }}
             placeholder={
               access === "padi"
-                ? "ask a question, share a substitution, or call out a blocker…"
+                ? dispute
+                  ? "paste evidence links or explain what happened for the resolver…"
+                  : "ask a question, share a substitution, or call out a blocker…"
                 : access === "resolver"
                   ? "ask either side for clarification before settling…"
                   : "ask a question or coordinate with your padi…"
@@ -378,13 +490,28 @@ export default function ChatPanel({
               className="mono text-[0.625rem]"
               style={{ color: "var(--color-text-4)" }}
             >
-              {draft.length}/2000 · ⌘↵ to send
+              {draft.length}/2000 · images up to 5MB
             </span>
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="hidden"
+              onChange={(e) => handleImageChange(e.target.files?.[0])}
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={posting}
+              onClick={() => imageInputRef.current?.click()}
+            >
+              image
+            </Button>
             <Button
               type="submit"
               variant="primary"
               loading={posting}
-              disabled={posting || !draft.trim()}
+              disabled={posting || (!draft.trim() && !image)}
             >
               send
             </Button>

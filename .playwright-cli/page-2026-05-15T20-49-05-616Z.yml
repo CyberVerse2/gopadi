@@ -1,0 +1,48 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - link "gopadi" [ref=e5] [cursor=pointer]:
+        - /url: /
+        - generic "gopadi" [ref=e6]: /gopadi
+      - navigation [ref=e7]:
+        - link "errands" [ref=e8] [cursor=pointer]:
+          - /url: /errands
+        - link "post" [ref=e9] [cursor=pointer]:
+          - /url: /post-errand
+        - link "resolver" [ref=e10] [cursor=pointer]:
+          - /url: /admin
+      - button "connect wallet" [ref=e12]
+  - main [ref=e13]:
+    - generic [ref=e14]:
+      - list [ref=e15]:
+        - listitem [ref=e16]:
+          - generic [ref=e17]: 01 task
+        - listitem [ref=e20]:
+          - generic [ref=e21]: 02 place
+        - listitem [ref=e24]:
+          - generic [ref=e25]: 03 money
+        - listitem [ref=e28]:
+          - generic [ref=e29]: 04 review
+      - generic [ref=e31]:
+        - paragraph [ref=e32]: step 01 · the task
+        - heading "what needs doing?" [level=1] [ref=e33]
+        - paragraph [ref=e34]: describe it like a message. we'll quietly read it and prefill the rest without rewriting this box.
+        - generic [ref=e35]: describe the errand
+        - textbox "buy rice, oil, beans and tomato paste from ogbete. drop at unn female hostel before 6pm. budget 25 usdc." [ref=e36]
+        - generic [ref=e37]: title
+        - textbox "buy foodstuff from ogbete market" [ref=e38]
+        - paragraph [ref=e39]: category
+        - generic [ref=e40]:
+          - button "foodstuff" [ref=e41]
+          - button "fuel" [ref=e42]
+          - button "groceries" [ref=e43]
+          - button "medicine" [ref=e44]
+          - button "delivery" [ref=e45]
+          - button "other" [ref=e46]
+    - generic [ref=e48]:
+      - button "← back" [disabled] [ref=e49]:
+        - generic [ref=e51]: ← back
+      - button "continue" [disabled] [ref=e52]:
+        - generic [ref=e53]:
+          - generic [ref=e54]: continue
+          - generic [ref=e55]: →

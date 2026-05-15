@@ -1,0 +1,91 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - link "gopadi" [ref=e5] [cursor=pointer]:
+        - /url: /
+        - generic "gopadi" [ref=e6]: /gopadi
+      - navigation [ref=e7]:
+        - link "errands" [ref=e8] [cursor=pointer]:
+          - /url: /errands
+        - link "post" [ref=e9] [cursor=pointer]:
+          - /url: /post-errand
+        - link "resolver" [ref=e10] [cursor=pointer]:
+          - /url: /admin
+      - button "connect wallet" [ref=e12]
+  - main [ref=e13]:
+    - generic [ref=e15]:
+      - generic [ref=e16]:
+        - paragraph [ref=e17]: Padi matching
+        - heading "Finding a Padi near you" [level=1] [ref=e18]
+        - paragraph [ref=e19]: We check available Padis, receiver readiness, and escrow setup before your errand is listed.
+      - generic [ref=e21]:
+        - generic [ref=e22]:
+          - paragraph [ref=e23]: live search
+          - generic [ref=e24]: loading errand
+        - list [ref=e25]:
+          - listitem [ref=e26]:
+            - generic [ref=e29]:
+              - paragraph [ref=e30]: Errand checked
+              - paragraph [ref=e31]: loading draft
+          - listitem [ref=e32]:
+            - generic [ref=e35]:
+              - paragraph [ref=e36]: Searching nearby Padis
+              - paragraph [ref=e37]: Scanning route, fee, distance, and completion history.
+          - listitem [ref=e38]:
+            - generic [ref=e41]:
+              - paragraph [ref=e42]: Best Padi selected
+              - paragraph [ref=e43]: Chinedu · 4.8 rating · 23 errands
+          - listitem [ref=e44]:
+            - generic [ref=e47]:
+              - paragraph [ref=e48]: USDC receiver check
+              - paragraph [ref=e49]: Receiver GACZ…KMSN
+          - listitem [ref=e50]:
+            - generic [ref=e53]:
+              - paragraph [ref=e54]: Escrow ready
+              - paragraph [ref=e55]: Trustless Work deploy and funding signatures come next.
+          - listitem [ref=e56]:
+            - generic [ref=e58]:
+              - paragraph [ref=e59]: Lock funds
+              - paragraph [ref=e60]: The errand is saved only after escrow funding succeeds.
+      - complementary [ref=e61]:
+        - generic [ref=e62]:
+          - paragraph [ref=e63]: selected Padi
+          - generic [ref=e64]:
+            - generic [ref=e65]:
+              - paragraph [ref=e66]: Chinedu
+              - paragraph [ref=e67]: GACZ…KMSN
+            - generic [ref=e68]: 12 min
+          - generic [ref=e69]:
+            - generic [ref=e70]:
+              - paragraph [ref=e71]: rating
+              - paragraph [ref=e72]: "4.8"
+            - generic [ref=e73]:
+              - paragraph [ref=e74]: done
+              - paragraph [ref=e75]: "23"
+            - generic [ref=e76]:
+              - paragraph [ref=e77]: away
+              - paragraph [ref=e78]: 1.4km
+        - generic [ref=e79]:
+          - paragraph [ref=e80]: escrow readiness
+          - list [ref=e81]:
+            - listitem [ref=e82]:
+              - generic [ref=e84]:
+                - paragraph [ref=e85]: customer USDC
+                - paragraph [ref=e86]: waiting for wallet check
+            - listitem [ref=e87]:
+              - generic [ref=e89]:
+                - paragraph [ref=e90]: selected Padi receiver
+                - paragraph [ref=e91]: GACZ…KMSN · not checked yet
+            - listitem [ref=e92]:
+              - generic [ref=e94]:
+                - paragraph [ref=e95]: escrow listing rule
+                - paragraph [ref=e96]: errand is saved only after deploy and fund signatures submit
+    - generic [ref=e98]:
+      - link "edit errand" [ref=e99] [cursor=pointer]:
+        - /url: /post-errand
+        - button "edit errand" [disabled] [ref=e100]:
+          - generic [ref=e102]: edit errand
+      - button "sign escrow" [disabled] [ref=e103]:
+        - generic [ref=e104]:
+          - generic [ref=e105]: sign escrow
+          - generic [ref=e106]: →
