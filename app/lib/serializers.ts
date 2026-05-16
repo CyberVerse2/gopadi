@@ -1,6 +1,7 @@
-import type { Dispute, Errand, ErrandMessage, TrustlessAction } from "../types";
+import type { Dispute, Errand, ErrandComment, ErrandMessage, TrustlessAction } from "../types";
 import type {
   disputes,
+  errandComments,
   errandMessages,
   errands,
   trustlessActions,
@@ -10,6 +11,7 @@ type ErrandRow = typeof errands.$inferSelect;
 type DisputeRow = typeof disputes.$inferSelect;
 type TrustlessActionRow = typeof trustlessActions.$inferSelect;
 type ErrandMessageRow = typeof errandMessages.$inferSelect;
+type ErrandCommentRow = typeof errandComments.$inferSelect;
 
 export function serializeErrand(row: ErrandRow): Errand {
   return {
@@ -31,6 +33,7 @@ export function serializeErrand(row: ErrandRow): Errand {
     escrowId: row.escrowId ?? undefined,
     escrowContractId: row.escrowContractId ?? undefined,
     trustlessEngagementId: row.trustlessEngagementId ?? undefined,
+    handoffCode: row.handoffCode,
     status: row.status,
     proofUrl: row.proofUrl ?? undefined,
     proofNote: row.proofNote ?? undefined,
@@ -64,6 +67,16 @@ export function serializeErrandMessage(row: ErrandMessageRow): ErrandMessage {
     body: row.body,
     imageUrl: row.imageUrl ?? undefined,
     imageName: row.imageName ?? undefined,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+export function serializeErrandComment(row: ErrandCommentRow): ErrandComment {
+  return {
+    id: row.id,
+    errandId: row.errandId,
+    authorWallet: row.authorWallet,
+    body: row.body,
     createdAt: row.createdAt.toISOString(),
   };
 }

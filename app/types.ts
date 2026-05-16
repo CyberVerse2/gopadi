@@ -49,6 +49,7 @@ export type Errand = {
   escrowId?: string;
   escrowContractId?: string;
   trustlessEngagementId?: string;
+  handoffCode: string;
 
   status: ErrandStatus;
 
@@ -85,6 +86,14 @@ export type ErrandMessage = {
   body: string;
   imageUrl?: string;
   imageName?: string;
+  createdAt: string;
+};
+
+export type ErrandComment = {
+  id: string;
+  errandId: string;
+  authorWallet: string;
+  body: string;
   createdAt: string;
 };
 

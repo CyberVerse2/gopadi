@@ -146,6 +146,7 @@ function pendingTrustlessErrand(input: CreateErrandInput) {
     deadline: new Date(input.deadline).toISOString(),
     items: input.items,
     trustlessEngagementId: pendingEngagementId(input),
+    handoffCode: pendingHandoffCode(input),
     status: "accepted" as const,
     createdAt: now,
     updatedAt: now,
@@ -158,6 +159,10 @@ function pendingErrandId(input: CreateErrandInput) {
 
 function pendingEngagementId(input: CreateErrandInput) {
   return `gopadi-${pendingErrandId(input)}`;
+}
+
+function pendingHandoffCode(input: CreateErrandInput) {
+  return stableKey(input).replace(/[^a-zA-Z0-9]/g, "").slice(-6).toUpperCase();
 }
 
 function stableKey(input: CreateErrandInput) {

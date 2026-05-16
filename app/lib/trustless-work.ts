@@ -43,6 +43,7 @@ export type TrustlessCreateErrand = Pick<
   | "deadline"
   | "items"
   | "trustlessEngagementId"
+  | "handoffCode"
 >;
 
 export type PreparedTrustlessTransaction = {

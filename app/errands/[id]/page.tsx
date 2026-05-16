@@ -11,12 +11,14 @@ import Button from "../../components/Button";
 import ChatDrawer from "../../components/ChatDrawer";
 import { useErrandChat } from "../../components/useErrandChat";
 import { useWallet } from "../../components/WalletProvider";
-import { Errand, Dispute, TrustlessAction } from "../../types";
+import { Errand, Dispute, ErrandComment, TrustlessAction } from "../../types";
 import {
   acceptErrand,
   getErrand,
+  listErrandComments,
   listTrustlessActions,
   openDispute,
+  postErrandComment,
   prepareTrustlessAction,
   startErrand,
   submitSignedTrustlessAction,
@@ -334,9 +336,57 @@ function errandPulseCopy(errand: Errand, role: ViewerRole, route: ReturnType<typ
   return "open for a nearby Padi.";
 }
 
-function handoffCode(id: string) {
-  const code = shortErrandId(id);
+function formatHandoffCode(value: string) {
+  const code = value.trim().toUpperCase();
   return code.length > 3 ? `${code.slice(0, 3)} ${code.slice(3)}` : code;
+}
+
+function normalizeHandoffCode(value: string) {
+  return value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+}
+
+type CommentsState = {
+  items: ErrandComment[];
+  loading: boolean;
+  error: string | null;
+  refresh: () => Promise<void>;
+  post: (body: string, authorWallet: string) => Promise<void>;
+};
+
+function useErrandComments(errandId: string): CommentsState {
+  const [items, setItems] = useState<ErrandComment[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await listErrandComments(errandId);
+      setItems(result.comments);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load comments.");
+    } finally {
+      setLoading(false);
+    }
+  }, [errandId]);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      void refresh();
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [refresh]);
+
+  const post = useCallback(
+    async (body: string, authorWallet: string) => {
+      await postErrandComment(errandId, body, authorWallet);
+      await refresh();
+    },
+    [errandId, refresh],
+  );
+
+  return { items, loading, error, refresh, post };
 }
 
 export default function ErrandDetailPage({
@@ -373,6 +423,7 @@ export default function ErrandDetailPage({
 
   // Chat stays open for pre-acceptance questions; a dispute later adds resolver context.
   const chat = useErrandChat(id, wallet.address, true);
+  const comments = useErrandComments(id);
 
   const refreshActions = useCallback(async () => {
     return listTrustlessActions(id);
@@ -522,9 +573,12 @@ export default function ErrandDetailPage({
     });
   }
 
-  function handleReleaseFunds() {
+  function handleReleaseFunds(inputCode: string) {
     if (!errand) return;
     void withLoading("release", async () => {
+      if (normalizeHandoffCode(inputCode) !== normalizeHandoffCode(errand.handoffCode)) {
+        throw new Error("Handoff code does not match this errand.");
+      }
       const signer = await requireRoleWallet(errand.customerWallet, "customer");
       await prepareSignSubmit({ type: "release_funds", signer });
     });
@@ -1174,6 +1228,14 @@ export default function ErrandDetailPage({
                 isTerminal={isTerminal}
               />
             </div>
+            <div className="sticky top-[34rem] motion-fade-up">
+              <RightRailComments
+                errand={errand}
+                comments={comments}
+                connectedWallet={connectedWallet}
+                onOpenChat={() => setChatOpen(true)}
+              />
+            </div>
           </aside>
         </div>
       </main>
@@ -1240,7 +1302,7 @@ function EscrowCard({
   onFundEscrow: () => void;
   onStartProgress: () => void;
   onConfirmCompletion: () => void;
-  onReleaseFunds: () => void;
+  onReleaseFunds: (handoffCode: string) => void;
   onOpenProof: () => void;
   onOpenDispute: () => void;
   onOpenChat: () => void;
@@ -1279,7 +1341,6 @@ function EscrowCard({
     onFundEscrow,
     onStartProgress,
     onConfirmCompletion,
-    onReleaseFunds,
     onOpenProof,
   });
 
@@ -1358,7 +1419,13 @@ function EscrowCard({
         )}
       </dl>
 
-      {action && (
+      {action && action.loadingKey === "release" ? (
+        <ReleaseHandoffConfirm
+          errand={errand}
+          loading={loading === "release"}
+          onReleaseFunds={onReleaseFunds}
+        />
+      ) : action && (
         <div className="mt-6 delight-stamp">
           <Button
             variant={action.variant}
@@ -1481,7 +1548,7 @@ function ErrandDelightStrip({
   route: ReturnType<typeof parseRoute>;
   padiName?: string;
 }) {
-  const code = handoffCode(errand.id);
+  const code = formatHandoffCode(errand.handoffCode);
   const codeNote =
     errand.status === "posted"
       ? "shown at handoff after a Padi accepts"
@@ -1506,7 +1573,7 @@ function ErrandDelightStrip({
             fontWeight: 800,
             letterSpacing: "0.04em",
           }}
-          title={shortErrandId(errand.id)}
+          title={errand.handoffCode}
         >
           {code}
         </p>
@@ -1575,6 +1642,191 @@ function PadiWorkChecklist({
         ))}
       </ol>
     </div>
+  );
+}
+
+function ReleaseHandoffConfirm({
+  errand,
+  loading,
+  compact = false,
+  onReleaseFunds,
+}: {
+  errand: Errand;
+  loading: boolean;
+  compact?: boolean;
+  onReleaseFunds: (handoffCode: string) => void;
+}) {
+  const [code, setCode] = useState("");
+  const matches = normalizeHandoffCode(code) === normalizeHandoffCode(errand.handoffCode);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!matches) return;
+    onReleaseFunds(code);
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className={compact ? "flex items-center gap-2" : "mt-6 hairline-t pt-4"}>
+      {!compact && (
+        <>
+          <p className="eyebrow mb-2">confirm handoff</p>
+          <p className="text-xs leading-relaxed mb-3" style={{ color: "var(--color-text-3)" }}>
+            Enter the handoff code before releasing escrow to the Padi.
+          </p>
+        </>
+      )}
+      <label className={compact ? "min-w-0" : "block"}>
+        <span className="sr-only">handoff code</span>
+        <input
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          inputMode="text"
+          autoCapitalize="characters"
+          autoComplete="off"
+          placeholder={compact ? "code" : "Handoff code"}
+          disabled={loading}
+          className={`mono bg-transparent outline-none hairline-b uppercase tracking-[0.12em] ${compact ? "w-24 px-1 py-2 text-xs" : "w-full py-2 text-base"}`}
+          style={{
+            borderColor: code && !matches ? "var(--color-risk)" : "var(--color-rule-strong)",
+            color: "var(--color-text)",
+          }}
+        />
+      </label>
+      <Button
+        type="submit"
+        variant="primary"
+        fullWidth={!compact}
+        loading={loading}
+        disabled={!matches}
+        className={compact ? "px-3 py-2" : ""}
+      >
+        release
+      </Button>
+      {!compact && code && !matches && (
+        <p className="mono text-[0.625rem] uppercase tracking-[0.08em] mt-2" style={{ color: "var(--color-risk)" }}>
+          code does not match
+        </p>
+      )}
+    </form>
+  );
+}
+
+function RightRailComments({
+  errand,
+  comments,
+  connectedWallet,
+  onOpenChat,
+}: {
+  errand: Errand;
+  comments: CommentsState;
+  connectedWallet: string | null;
+  onOpenChat: () => void;
+}) {
+  const [body, setBody] = useState("");
+  const [posting, setPosting] = useState(false);
+  const latest = comments.items.slice(-3).reverse();
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = body.trim();
+    if (!trimmed) return;
+    if (!connectedWallet) return;
+    setPosting(true);
+    try {
+      await comments.post(trimmed, connectedWallet);
+      setBody("");
+    } finally {
+      setPosting(false);
+    }
+  }
+
+  return (
+    <section className="mt-4 hairline p-4" style={{ background: "var(--color-bg-2)" }}>
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="eyebrow">comments</p>
+        <button
+          type="button"
+          onClick={onOpenChat}
+          className="mono text-[0.625rem] uppercase tracking-[0.08em] underline underline-offset-2 press"
+          style={{ color: "var(--color-text-3)" }}
+        >
+          open chat
+        </button>
+      </div>
+
+      <ol className="mt-3 space-y-3">
+        {comments.loading && latest.length === 0 && (
+          <li className="mono text-[0.625rem] uppercase tracking-[0.08em]" style={{ color: "var(--color-text-4)" }}>
+            loading comments...
+          </li>
+        )}
+        {!comments.loading && latest.length === 0 && (
+          <li className="text-xs leading-relaxed" style={{ color: "var(--color-text-3)" }}>
+            No comments yet. Add timing, substitution, or handoff notes here.
+          </li>
+        )}
+        {latest.map((message) => {
+          const mine = Boolean(connectedWallet && message.authorWallet === connectedWallet);
+          const role =
+            message.authorWallet === errand.customerWallet
+              ? "customer"
+              : message.authorWallet === errand.runnerWallet
+                ? "padi"
+                : message.authorWallet === errand.adminWallet
+                  ? "resolver"
+                  : "comment";
+
+          return (
+            <li key={message.id} className="hairline-t pt-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="mono text-[0.625rem] uppercase tracking-[0.08em]" style={{ color: mine ? "var(--color-signal)" : "var(--color-text-3)" }}>
+                  {mine ? "you" : role}
+                </p>
+                <time className="mono text-[0.5625rem] uppercase tracking-[0.08em]" style={{ color: "var(--color-text-4)" }}>
+                  {formatRelative(message.createdAt)}
+                </time>
+              </div>
+              <p className="mt-1 text-xs leading-relaxed" style={{ color: "var(--color-text-2)" }}>
+                {message.body}
+              </p>
+            </li>
+          );
+        })}
+      </ol>
+
+      {comments.error && (
+        <p className="mono text-[0.625rem] uppercase tracking-[0.08em] mt-3" style={{ color: "var(--color-risk)" }}>
+          {comments.error}
+        </p>
+      )}
+
+      <form onSubmit={handleSubmit} className="mt-4 hairline-t pt-3">
+        <textarea
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          disabled={!connectedWallet || posting}
+          rows={3}
+          maxLength={500}
+          placeholder={connectedWallet ? "Add a comment..." : "Connect wallet to comment"}
+          className="w-full bg-transparent outline-none resize-none text-xs leading-relaxed"
+          style={{ color: "var(--color-text)", minHeight: 70 }}
+        />
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <span className="mono text-[0.5625rem] uppercase tracking-[0.08em]" style={{ color: "var(--color-text-4)" }}>
+            {comments.items.length} loaded
+          </span>
+          <Button
+            type="submit"
+            variant="secondary"
+            loading={posting}
+            disabled={!connectedWallet || !body.trim()}
+            className="px-3 py-2"
+          >
+            post
+          </Button>
+        </div>
+      </form>
+    </section>
   );
 }
 
@@ -1799,7 +2051,6 @@ function nextAction({
   onFundEscrow,
   onStartProgress,
   onConfirmCompletion,
-  onReleaseFunds,
   onOpenProof,
 }: {
   errand: Errand;
@@ -1810,7 +2061,6 @@ function nextAction({
   onFundEscrow: () => void;
   onStartProgress: () => void;
   onConfirmCompletion: () => void;
-  onReleaseFunds: () => void;
   onOpenProof: () => void;
 }): ActionDef | null {
   const { status } = errand;
@@ -1900,7 +2150,7 @@ function nextAction({
           label: "Release funds",
           variant: "primary",
           loadingKey: "release",
-          onClick: onReleaseFunds,
+          onClick: () => undefined,
           hint: "Pays out the escrow to the Padi.",
         }
       : { label: "Waiting on release", variant: "ghost", loadingKey: "_", onClick: () => {}, hint: "Requester will release escrow shortly." };
@@ -2488,7 +2738,7 @@ function MobileEscrowBar({
   onFundEscrow: () => void;
   onStartProgress: () => void;
   onConfirmCompletion: () => void;
-  onReleaseFunds: () => void;
+  onReleaseFunds: (handoffCode: string) => void;
   onOpenProof: () => void;
   isDisputed: boolean;
   isTerminal: boolean;
@@ -2502,7 +2752,6 @@ function MobileEscrowBar({
     onFundEscrow,
     onStartProgress,
     onConfirmCompletion,
-    onReleaseFunds,
     onOpenProof,
   });
 
@@ -2559,14 +2808,23 @@ function MobileEscrowBar({
           </p>
         </div>
         <div className="flex-1" />
-        <Button
-          variant={action.variant}
-          onClick={action.onClick}
-          loading={loading === action.loadingKey}
-          disabled={!isPrimary || loading === action.loadingKey}
-        >
-          {action.label}
-        </Button>
+        {action.loadingKey === "release" ? (
+          <ReleaseHandoffConfirm
+            errand={errand}
+            compact
+            loading={loading === "release"}
+            onReleaseFunds={onReleaseFunds}
+          />
+        ) : (
+          <Button
+            variant={action.variant}
+            onClick={action.onClick}
+            loading={loading === action.loadingKey}
+            disabled={!isPrimary || loading === action.loadingKey}
+          >
+            {action.label}
+          </Button>
+        )}
       </div>
     </div>
   );

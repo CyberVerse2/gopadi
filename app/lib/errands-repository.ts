@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, isNotNull } from "drizzle-orm";
 import { getDb } from "../db";
-import { disputes, errandMessages, errands } from "../db/schema";
+import { disputes, errandComments, errandMessages, errands } from "../db/schema";
 import type {
   DisputeResolution,
   DisputeTrack,
@@ -8,10 +8,11 @@ import type {
   ErrandItem,
   ErrandStatus,
 } from "../types";
-import { generateId } from "./ids";
+import { generateHandoffCode, generateId } from "./ids";
 import {
   serializeDispute,
   serializeErrand,
+  serializeErrandComment,
   serializeErrandMessage,
 } from "./serializers";
 
@@ -81,6 +82,7 @@ export async function createFundedErrand(input: CreateFundedErrandInput) {
       escrowId: input.escrowId,
       escrowContractId: input.escrowContractId,
       trustlessEngagementId: input.trustlessEngagementId,
+      handoffCode: generateHandoffCode(),
       status: "escrow_funded",
       createdAt: now,
       updatedAt: now,
@@ -109,6 +111,7 @@ export async function createErrand(input: CreateErrandInput) {
       totalEscrowAmountUSDC: total,
       items: input.items && input.items.length > 0 ? input.items : undefined,
       deadline: new Date(input.deadline),
+      handoffCode: generateHandoffCode(),
       createdAt: now,
       updatedAt: now,
     })
@@ -388,6 +391,40 @@ export async function createErrandMessage(input: {
     .returning();
 
   return serializeErrandMessage(row);
+}
+
+export async function listErrandComments(errandId: string) {
+  await requireErrand(errandId);
+  const rows = await getDb()
+    .select()
+    .from(errandComments)
+    .where(eq(errandComments.errandId, errandId))
+    .orderBy(asc(errandComments.createdAt));
+  return rows.map(serializeErrandComment);
+}
+
+export async function createErrandComment(input: {
+  errandId: string;
+  authorWallet: string;
+  body: string;
+}) {
+  if (!input.authorWallet.trim()) throw new Error("Author wallet is required.");
+  if (!input.body.trim()) throw new Error("Comment body is required.");
+  if (input.body.length > 500) throw new Error("Comment is too long.");
+  await requireErrand(input.errandId);
+
+  const [row] = await getDb()
+    .insert(errandComments)
+    .values({
+      id: generateId("comment"),
+      errandId: input.errandId,
+      authorWallet: input.authorWallet,
+      body: input.body.trim(),
+      createdAt: new Date(),
+    })
+    .returning();
+
+  return serializeErrandComment(row);
 }
 
 async function requireErrand(id: string) {

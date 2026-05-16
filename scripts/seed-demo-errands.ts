@@ -1,6 +1,7 @@
 import "dotenv/config";
 
 import {
+  createErrandComment,
   createFundedErrand,
   openDispute,
   startErrand,
@@ -84,6 +85,7 @@ async function main() {
       },
     ]),
   );
+  await seedDemoComments(successful.id);
   created.push(successful.id);
 
   const disputed = await createFundedErrand({
@@ -112,6 +114,11 @@ async function main() {
     reason: "The submitted handoff proof does not show the medicine was received by the right person.",
     track: "normal",
   });
+  await seedDemoComments(disputed.id, {
+    customer: "Please confirm who received it. The gate photo does not show the recipient.",
+    padi: "I handed it to the security desk because the recipient was not picking calls.",
+    resolver: "Add any recipient call screenshots or handoff confirmation before settlement.",
+  });
   created.push(disputed.id);
 
   const open = await createFundedErrand({
@@ -121,6 +128,11 @@ async function main() {
     escrowId: `demo-open-${Date.now()}`,
     escrowContractId: `CDEMO_OPEN_${Date.now()}`,
     trustlessEngagementId: `gopadi-demo-open-${Date.now()}`,
+  });
+  await seedDemoComments(open.id, {
+    customer: "Please call before leaving Faculty of Arts. The envelope must stay sealed.",
+    padi: "Seen. I will update here when I get to Admin Block reception.",
+    resolver: "Keep the handoff note here if reception signs for it.",
   });
   created.push(open.id);
 
@@ -132,3 +144,34 @@ main().catch((error) => {
   console.error(error);
   process.exit(1);
 });
+
+async function seedDemoComments(
+  errandId: string,
+  copy: {
+    customer?: string;
+    padi?: string;
+    resolver?: string;
+  } = {},
+) {
+  await createErrandComment({
+    errandId,
+    authorWallet: customerWallet,
+    body:
+      copy.customer ??
+      "Please send a quick update here before delivery. I will release escrow after checking the handoff code.",
+  });
+  await createErrandComment({
+    errandId,
+    authorWallet: runnerWallet,
+    body:
+      copy.padi ??
+      "I am on it. I will upload receipt, item photo, and handoff proof before asking for release.",
+  });
+  await createErrandComment({
+    errandId,
+    authorWallet: adminWallet,
+    body:
+      copy.resolver ??
+      "Keep substitutions, receipts, and handoff notes in this thread so the record is clear.",
+  });
+}

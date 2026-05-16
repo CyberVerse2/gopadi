@@ -8,7 +8,13 @@ import {
   useMemo,
   useState,
 } from "react";
-import { getAddress, isConnected, requestAccess, signTransaction } from "@stellar/freighter-api";
+import {
+  getAddress,
+  isConnected,
+  requestAccess,
+  signTransaction,
+  WatchWalletChanges,
+} from "@stellar/freighter-api";
 
 const TESTNET_PASSPHRASE = "Test SDF Network ; September 2015";
 
@@ -40,6 +46,27 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       })
       .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (!address) return;
+    const watcher = new WatchWalletChanges(2000);
+    let errorTimer: ReturnType<typeof setTimeout> | null = null;
+    const result = watcher.watch(({ address: nextAddress, error }) => {
+      if (error) {
+        setError(error.message);
+        return;
+      }
+      setError(null);
+      setAddress(nextAddress || null);
+    });
+    if (result.error) {
+      errorTimer = setTimeout(() => setError(result.error?.message ?? "Wallet watcher failed."), 0);
+    }
+    return () => {
+      watcher.stop();
+      if (errorTimer) clearTimeout(errorTimer);
+    };
+  }, [address]);
 
   const connect = useCallback(async () => {
     setConnecting(true);

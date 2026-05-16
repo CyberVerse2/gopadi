@@ -96,6 +96,7 @@ export const errands = pgTable(
     escrowId: text("escrow_id"),
     escrowContractId: text("escrow_contract_id"),
     trustlessEngagementId: text("trustless_engagement_id"),
+    handoffCode: text("handoff_code").notNull(),
 
     status: errandStatusEnum("status").notNull().default("posted"),
     proofUrl: text("proof_url"),
@@ -150,6 +151,23 @@ export const errandMessages = pgTable(
   (table) => [
     index("errand_messages_errand_id_idx").on(table.errandId),
     index("errand_messages_created_at_idx").on(table.createdAt),
+  ],
+);
+
+export const errandComments = pgTable(
+  "errand_comments",
+  {
+    id: text("id").primaryKey(),
+    errandId: text("errand_id")
+      .notNull()
+      .references(() => errands.id, { onDelete: "cascade" }),
+    authorWallet: text("author_wallet").notNull(),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("errand_comments_errand_id_idx").on(table.errandId),
+    index("errand_comments_created_at_idx").on(table.createdAt),
   ],
 );
 

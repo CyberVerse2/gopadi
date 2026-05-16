@@ -5,6 +5,7 @@ import type {
   DisputeTrack,
   Errand,
   ErrandCategory,
+  ErrandComment,
   ErrandItem,
   ErrandMessage,
   SmartDisputeBrief,
@@ -204,6 +205,20 @@ export function postErrandMessage(
       imageUrl: image?.url,
       imageName: image?.name,
     }),
+  });
+}
+
+export function listErrandComments(id: string) {
+  return request<{ comments: ErrandComment[] }>(
+    `/api/errands/${id}/comments`,
+    { cache: "no-store" },
+  );
+}
+
+export function postErrandComment(id: string, body: string, authorWallet: string) {
+  return request<{ comment: ErrandComment }>(`/api/errands/${id}/comments`, {
+    method: "POST",
+    body: JSON.stringify({ body, authorWallet }),
   });
 }
 
