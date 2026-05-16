@@ -27,6 +27,7 @@ const TABS = [
   { key: "metrics", label: "metrics" },
 ] as const;
 type Tab = (typeof TABS)[number]["key"];
+const RECENT_RESOLVED_LIMIT = 8;
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleString("en-NG", {
@@ -205,8 +206,25 @@ export default function AdminPage() {
     }
   }
 
-  const openDisputes = disputes.filter((d) => d.status === "open");
-  const resolvedDisputes = disputes.filter((d) => d.status === "resolved");
+  const openDisputes = useMemo(
+    () => disputes.filter((d) => d.status === "open"),
+    [disputes],
+  );
+  const resolvedDisputes = useMemo(
+    () => disputes.filter((d) => d.status === "resolved"),
+    [disputes],
+  );
+  const recentResolvedDisputes = useMemo(
+    () =>
+      [...resolvedDisputes]
+        .sort(
+          (a, b) =>
+            new Date(b.resolvedAt ?? b.createdAt).getTime() -
+            new Date(a.resolvedAt ?? a.createdAt).getTime(),
+        )
+        .slice(0, RECENT_RESOLVED_LIMIT),
+    [resolvedDisputes],
+  );
 
   // Metrics
   const metrics = useMemo(() => {
@@ -684,51 +702,154 @@ export default function AdminPage() {
               </ul>
             )}
 
-            {resolvedDisputes.length > 0 && (
+            {recentResolvedDisputes.length > 0 && (
               <div className="mt-12">
-                <p
-                  className="eyebrow mb-4"
-                  style={{ color: "var(--color-text-4)" }}
-                >
-                  resolved · {String(resolvedDisputes.length).padStart(2, "0")}
-                </p>
-                <ul className="hairline-t" style={{ opacity: 0.6 }}>
-                  {resolvedDisputes.map((d) => {
+                <div className="flex flex-wrap items-baseline justify-between gap-3 mb-4">
+                  <div>
+                    <p className="eyebrow" style={{ color: "var(--color-text-3)" }}>
+                      recently resolved
+                    </p>
+                    <p
+                      className="mono text-[0.625rem] uppercase tracking-[0.08em] mt-1"
+                      style={{ color: "var(--color-text-4)" }}
+                    >
+                      showing {String(recentResolvedDisputes.length).padStart(2, "0")} of{" "}
+                      {String(resolvedDisputes.length).padStart(2, "0")}
+                    </p>
+                  </div>
+                  <p className="text-sm" style={{ color: "var(--color-text-3)" }}>
+                    settled cases stay visible for audit and follow-up.
+                  </p>
+                </div>
+                <ul className="hairline-t">
+                  {recentResolvedDisputes.map((d) => {
                     const errand = getErrandFor(d);
+                    const isOpen = expanded === d.id;
                     return (
                       <li
                         key={d.id}
-                        className="grid grid-cols-[1fr_auto] gap-4 items-baseline px-4 sm:px-6 py-3 hairline-b"
+                        className="hairline-b"
                       >
-                        <div className="min-w-0">
-                          <p
-                            className="text-sm truncate"
-                            style={{ color: "var(--color-text-2)" }}
-                          >
-                            {errand?.title ?? "unknown errand"}
-                          </p>
-                          <p
-                            className="mono text-[0.625rem] mt-0.5"
-                            style={{ color: "var(--color-text-4)" }}
-                          >
-                            {d.resolvedAt
-                              ? `resolved ${formatDate(d.resolvedAt)}`
-                              : ""}
-                          </p>
-                        </div>
-                        <span
-                          className="mono text-[0.625rem] uppercase tracking-[0.08em]"
-                          style={{
-                            color:
-                              d.resolution === "release_to_runner"
-                                ? "var(--color-ok)"
-                                : "var(--color-text-3)",
-                          }}
+                        <button
+                          type="button"
+                          onClick={() => void expandDispute(d)}
+                          className="w-full text-left row-hover px-4 sm:px-6 py-3 grid grid-cols-[1fr_auto_auto] gap-4 items-baseline"
+                          aria-expanded={isOpen}
                         >
-                          {d.resolution === "release_to_runner"
-                            ? "released"
-                            : "refunded"}
-                        </span>
+                          <div className="min-w-0">
+                            <p
+                              className="text-sm truncate"
+                              style={{ color: "var(--color-text-2)", fontWeight: 600 }}
+                            >
+                              {errand?.title ?? "unknown errand"}
+                            </p>
+                            <p
+                              className="mono text-[0.625rem] mt-0.5 uppercase tracking-[0.08em]"
+                              style={{ color: "var(--color-text-4)" }}
+                            >
+                              {d.resolvedAt
+                                ? `resolved ${formatDate(d.resolvedAt)}`
+                                : "resolved"}
+                            </p>
+                          </div>
+                          <span
+                            className="mono text-[0.625rem] uppercase tracking-[0.08em]"
+                            style={{
+                              color:
+                                d.resolution === "release_to_runner"
+                                  ? "var(--color-ok)"
+                                  : "var(--color-text-3)",
+                            }}
+                          >
+                            {d.resolution === "release_to_runner" ? "released" : "refunded"}
+                          </span>
+                          <span
+                            className="mono text-xs uppercase tracking-[0.08em]"
+                            style={{ color: "var(--color-text-3)" }}
+                          >
+                            {isOpen ? "hide ↑" : "view ↓"}
+                          </span>
+                        </button>
+
+                        {isOpen && (
+                          <div className="px-4 sm:px-6 pb-5 motion-fade-up grid grid-cols-1 lg:grid-cols-[1fr_240px] gap-5">
+                            <div className="space-y-3">
+                              <div
+                                className="hairline px-4 py-3"
+                                style={{ background: "var(--color-bg-2)" }}
+                              >
+                                <p className="eyebrow mb-1">claim</p>
+                                <p
+                                  className="text-sm leading-snug"
+                                  style={{ color: "var(--color-text)" }}
+                                >
+                                  “{d.reason}”
+                                </p>
+                                {d.evidenceUrl && (
+                                  <a
+                                    href={d.evidenceUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="mono text-xs break-all mt-2 inline-block underline underline-offset-2"
+                                    style={{ color: "var(--color-risk)" }}
+                                  >
+                                    evidence · {d.evidenceUrl}
+                                  </a>
+                                )}
+                              </div>
+                              <div className="hairline px-4 py-3">
+                                <p className="eyebrow mb-1">resolution notes</p>
+                                <p
+                                  className="text-sm leading-relaxed"
+                                  style={{ color: "var(--color-text-2)" }}
+                                >
+                                  {d.resolverNotes || "No resolver notes were saved."}
+                                </p>
+                              </div>
+                            </div>
+                            <aside className="hairline-t lg:border-t-0 lg:hairline-l pt-4 lg:pt-0 lg:pl-5">
+                              <p className="eyebrow mb-2">settled outcome</p>
+                              <p
+                                className="mono text-xs uppercase tracking-[0.08em]"
+                                style={{
+                                  color:
+                                    d.resolution === "release_to_runner"
+                                      ? "var(--color-ok)"
+                                      : "var(--color-risk)",
+                                }}
+                              >
+                                {d.resolution === "release_to_runner"
+                                  ? "released to padi"
+                                  : "refunded customer"}
+                              </p>
+                              {errand && (
+                                <div className="mt-3">
+                                  <MoneyDisplay
+                                    amount={errand.totalEscrowAmountUSDC}
+                                    size="sm"
+                                    tone={d.resolution === "release_to_runner" ? "ok" : "risk"}
+                                  />
+                                </div>
+                              )}
+                              <p
+                                className="mono text-[0.625rem] uppercase tracking-[0.08em] mt-3 leading-relaxed"
+                                style={{ color: "var(--color-text-4)" }}
+                              >
+                                opened {formatDate(d.createdAt)}
+                                {d.resolvedAt ? ` · closed ${formatDate(d.resolvedAt)}` : ""}
+                              </p>
+                              {errand && (
+                                <Link
+                                  href={`/errands/${errand.id}`}
+                                  className="mono text-xs uppercase tracking-[0.08em] underline underline-offset-2 press mt-4 inline-block"
+                                  style={{ color: "var(--color-text-2)" }}
+                                >
+                                  view errand →
+                                </Link>
+                              )}
+                            </aside>
+                          </div>
+                        )}
                       </li>
                     );
                   })}
