@@ -1,10 +1,22 @@
 import "dotenv/config";
 
-import { createErrand } from "../app/lib/errands-repository";
+import {
+  createFundedErrand,
+  openDispute,
+  startErrand,
+  updateErrandStatus,
+  uploadProof,
+} from "../app/lib/errands-repository";
 
 const customerWallet =
   process.env.GOPADI_PLATFORM_WALLET ??
   "GDEMO000000000000000000000000000000000000000000000000000";
+const runnerWallet =
+  process.env.GOPADI_DEMO_PADI_WALLET ??
+  "GDEMO111111111111111111111111111111111111111111111111111";
+const adminWallet =
+  process.env.GOPADI_RESOLVER_WALLET ??
+  "GDEMO222222222222222222222222222222222222222222222222222";
 
 const demoErrands = [
   {
@@ -50,10 +62,69 @@ const demoErrands = [
 
 async function main() {
   const created = [];
-  for (const input of demoErrands) {
-    created.push(await createErrand(input));
-  }
-  console.log(JSON.stringify({ ok: true, created: created.map((e) => e.id) }, null, 2));
+  const [successfulInput, disputedInput, openInput] = demoErrands;
+
+  const successful = await createFundedErrand({
+    ...successfulInput,
+    runnerWallet,
+    adminWallet,
+    escrowId: `demo-success-${Date.now()}`,
+    escrowContractId: `CDEMO_SUCCESS_${Date.now()}`,
+    trustlessEngagementId: `gopadi-demo-success-${Date.now()}`,
+  });
+  await startErrand(successful.id, runnerWallet);
+  await uploadProof(
+    successful.id,
+    "Bought rice, oil, beans, and tomato paste. Receipt and item photos uploaded in the demo.",
+    JSON.stringify([
+      {
+        type: "receipt",
+        url: "https://res.cloudinary.com/demo/image/upload/sample.jpg",
+        name: "demo receipt",
+      },
+    ]),
+  );
+  created.push(successful.id);
+
+  const disputed = await createFundedErrand({
+    ...disputedInput,
+    runnerWallet,
+    adminWallet,
+    escrowId: `demo-dispute-${Date.now()}`,
+    escrowContractId: `CDEMO_DISPUTE_${Date.now()}`,
+    trustlessEngagementId: `gopadi-demo-dispute-${Date.now()}`,
+  });
+  await startErrand(disputed.id, runnerWallet);
+  await uploadProof(
+    disputed.id,
+    "Picked up medicine and delivered to the estate gate, but requester says the handoff was incomplete.",
+    JSON.stringify([
+      {
+        type: "delivery",
+        url: "https://res.cloudinary.com/demo/image/upload/sample.jpg",
+        name: "demo handoff",
+      },
+    ]),
+  );
+  await updateErrandStatus(disputed.id, "disputed");
+  await openDispute(disputed.id, "customer", {
+    reasonCode: "proof_rejected",
+    reason: "The submitted handoff proof does not show the medicine was received by the right person.",
+    track: "normal",
+  });
+  created.push(disputed.id);
+
+  const open = await createFundedErrand({
+    ...openInput,
+    runnerWallet,
+    adminWallet,
+    escrowId: `demo-open-${Date.now()}`,
+    escrowContractId: `CDEMO_OPEN_${Date.now()}`,
+    trustlessEngagementId: `gopadi-demo-open-${Date.now()}`,
+  });
+  created.push(open.id);
+
+  console.log(JSON.stringify({ ok: true, created }, null, 2));
   process.exit(0);
 }
 

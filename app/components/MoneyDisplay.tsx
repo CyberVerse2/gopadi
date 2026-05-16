@@ -1,9 +1,10 @@
-type Tone = "default" | "signal" | "ok" | "muted";
+type Tone = "default" | "signal" | "ok" | "risk" | "muted";
 
 const toneColor: Record<Tone, string> = {
   default: "var(--color-text)",
   signal:  "var(--color-signal)",
   ok:      "var(--color-ok)",
+  risk:    "var(--color-risk)",
   muted:   "var(--color-text-3)",
 };
 

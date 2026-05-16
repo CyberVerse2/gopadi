@@ -12,6 +12,7 @@ import {
   getWalletUsdcBalance,
   type FundedErrandInput,
 } from "../../lib/api-client";
+import { getPadiProfile } from "../../lib/padi-profile";
 
 const DRAFT_KEY = "gopadi:pending-funded-errand";
 const SELECTED_PADI_WALLET =
@@ -44,15 +45,10 @@ type PendingDraft = {
 
 type BalanceCheck = {
   balanceUSDC: number;
-  hasTrustline: boolean;
 };
 
 const CANDIDATE = {
-  name: "Chinedu",
-  rating: "4.8",
-  completed: 23,
-  distance: "1.4km",
-  eta: "12 min",
+  ...getPadiProfile(SELECTED_PADI_WALLET)!,
   wallet: SELECTED_PADI_WALLET,
 };
 
@@ -106,9 +102,7 @@ export default function MatchingPage() {
   const [draft, setDraft] = useState<PendingDraft | null>(null);
   const [stage, setStage] = useState<FlowStage>("loading");
   const [customerCheck, setCustomerCheck] = useState<BalanceCheck | null>(null);
-  const [padiCheck, setPadiCheck] = useState<BalanceCheck | null>(null);
   const [customerReadiness, setCustomerReadiness] = useState<Readiness>("idle");
-  const [padiReadiness, setPadiReadiness] = useState<Readiness>("idle");
   const [error, setError] = useState<string | null>(null);
   const [deploySignedXdr, setDeploySignedXdr] = useState<string | null>(null);
   const [contractId, setContractId] = useState<string | null>(null);
@@ -137,19 +131,15 @@ export default function MatchingPage() {
         label: "customer USDC",
         readiness: customerReadiness,
         body: customerCheck
-          ? `${customerCheck.balanceUSDC.toFixed(2)} USDC · ${
-              customerCheck.hasTrustline ? "trustline ready" : "missing trustline"
-            }`
+          ? `${customerCheck.balanceUSDC.toFixed(2)} USDC available`
           : "waiting for wallet check",
       },
       {
         label: "selected Padi receiver",
-        readiness: padiReadiness,
-        body: padiCheck
-          ? `${shortAddr(CANDIDATE.wallet)} · ${
-              padiCheck.hasTrustline ? "can receive USDC" : "missing USDC trustline"
-            }`
-          : `${shortAddr(CANDIDATE.wallet)} · not checked yet`,
+        readiness: ["selected", "ready", "deploying", "funding", "saving", "created"].includes(stage)
+          ? "ready"
+          : "idle",
+        body: `${shortAddr(CANDIDATE.wallet)} selected for payout`,
       },
       {
         label: "escrow listing rule",
@@ -166,7 +156,7 @@ export default function MatchingPage() {
         body: "errand is saved only after deploy and fund signatures submit",
       },
     ],
-    [customerCheck, customerReadiness, padiCheck, padiReadiness, stage],
+    [customerCheck, customerReadiness, stage],
   );
 
   const runReadiness = useCallback(async () => {
@@ -174,18 +164,11 @@ export default function MatchingPage() {
     setError(null);
     setStage("checking");
     setCustomerReadiness("checking");
-    setPadiReadiness("idle");
     try {
       const customerWallet = wallet.address ?? (await wallet.connect());
       const customer = await getWalletUsdcBalance(customerWallet);
       setCustomerCheck(customer);
 
-      if (!customer.hasTrustline) {
-        setCustomerReadiness("blocked");
-        setStage("blocked");
-        setError("Your wallet needs the testnet USDC trustline before posting.");
-        return;
-      }
       if (customer.balanceUSDC < draft.review.totalUSDC) {
         setCustomerReadiness("blocked");
         setStage("blocked");
@@ -199,25 +182,9 @@ export default function MatchingPage() {
 
       window.setTimeout(async () => {
         setStage("selected");
-        setPadiReadiness("checking");
-        try {
-          const padi = await getWalletUsdcBalance(CANDIDATE.wallet);
-          setPadiCheck(padi);
-          if (!padi.hasTrustline) {
-            setPadiReadiness("blocked");
-            setStage("blocked");
-            setError(
-              `Selected Padi ${shortAddr(CANDIDATE.wallet)} cannot receive USDC yet. Add the USDC asset to that wallet, then retry receiver check.`,
-            );
-            return;
-          }
-          setPadiReadiness("ready");
+        window.setTimeout(() => {
           setStage("ready");
-        } catch (e) {
-          setPadiReadiness("blocked");
-          setStage("blocked");
-          setError(e instanceof Error ? e.message : "Could not verify selected Padi receiver.");
-        }
+        }, 500);
       }, 900);
     } catch (e) {
       setCustomerReadiness("blocked");
@@ -276,7 +243,17 @@ export default function MatchingPage() {
       }
       window.sessionStorage.removeItem(DRAFT_KEY);
       setStage("created");
-      router.push(`/errands/${created.errand.id}`);
+      const params = new URLSearchParams({
+        id: created.errand.id,
+        title: created.errand.title,
+        amount: String(created.errand.totalEscrowAmountUSDC),
+        padi: created.errand.runnerWallet ?? CANDIDATE.wallet,
+      });
+      const viewerContractId = created.escrowContractId ?? created.errand.escrowContractId;
+      const txHash = created.fundTransactionHash ?? created.deployTransactionHash;
+      if (viewerContractId) params.set("contract", viewerContractId);
+      if (txHash) params.set("tx", txHash);
+      router.push(`/post-errand/success?${params.toString()}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not fund escrow.");
       setStage(contractId || deploySignedXdr ? "funding" : "ready");
@@ -316,7 +293,7 @@ export default function MatchingPage() {
                 className="mt-5 text-sm leading-relaxed max-w-[44ch]"
                 style={{ color: "var(--color-text-2)" }}
               >
-                We check available Padis, receiver readiness, and escrow setup before your errand is listed.
+                We check available Padis, your USDC balance, and escrow setup before your errand is listed.
               </p>
 
               {draft && (
@@ -362,7 +339,7 @@ export default function MatchingPage() {
                 </div>
 
                 <ol className="mt-7 space-y-0">
-                  {[
+                  {([
                     {
                       key: "checked",
                       label: "Errand checked",
@@ -386,14 +363,10 @@ export default function MatchingPage() {
                     },
                     {
                       key: "receiver",
-                      label: "USDC receiver check",
-                      body:
-                        padiReadiness === "blocked"
-                          ? "Selected Padi must add USDC before escrow can deploy."
-                          : `Receiver ${shortAddr(CANDIDATE.wallet)}`,
-                      active: padiReadiness === "checking",
-                      done: padiReadiness === "ready",
-                      blocked: padiReadiness === "blocked",
+                      label: "Padi selected",
+                      body: `Payout receiver ${shortAddr(CANDIDATE.wallet)}`,
+                      active: stage === "selected",
+                      done: ["ready", "deploying", "funding", "saving", "created"].includes(stage),
                     },
                     {
                       key: "escrow",
@@ -409,7 +382,14 @@ export default function MatchingPage() {
                       active: ["deploying", "funding", "saving"].includes(stage),
                       done: stage === "created",
                     },
-                  ].map((item, i, arr) => (
+                  ] as Array<{
+                    key: string;
+                    label: string;
+                    body: string;
+                    active: boolean;
+                    done: boolean;
+                    blocked?: boolean;
+                  }>).map((item, i, arr) => (
                     <li
                       key={item.key}
                       className="relative grid grid-cols-[18px_1fr] gap-x-4"
@@ -501,13 +481,28 @@ export default function MatchingPage() {
               <div className="hairline p-5" style={{ borderRadius: 8 }}>
                 <p className="eyebrow mb-4">selected Padi</p>
                 <div className="flex items-start justify-between gap-4">
-                  <div>
+                  <div className="flex items-start gap-3 min-w-0">
+                    <span
+                      className="mono shrink-0 grid place-items-center"
+                      style={{
+                        width: 38,
+                        height: 38,
+                        color: "var(--color-signal-ink)",
+                        background: "var(--color-signal)",
+                        fontSize: "0.75rem",
+                        fontWeight: 800,
+                      }}
+                    >
+                      {CANDIDATE.avatar}
+                    </span>
+                    <div className="min-w-0">
                     <p style={{ color: "var(--color-text)", fontWeight: 800, fontSize: "1.5rem" }}>
                       {CANDIDATE.name}
                     </p>
                     <p className="mono text-xs mt-1" style={{ color: "var(--color-text-3)" }}>
-                      {shortAddr(CANDIDATE.wallet)}
+                      {CANDIDATE.handle} · {shortAddr(CANDIDATE.wallet)}
                     </p>
+                    </div>
                   </div>
                   <span
                     className="mono text-xs px-2 py-1"
@@ -535,6 +530,14 @@ export default function MatchingPage() {
                       </p>
                     </div>
                   ))}
+                </div>
+                <div className="mt-5 hairline-t pt-4">
+                  <p className="mono text-[0.625rem] uppercase tracking-[0.08em]" style={{ color: "var(--color-text-4)" }}>
+                    {CANDIDATE.specialty} · {CANDIDATE.area}
+                  </p>
+                  <p className="text-sm leading-relaxed mt-2" style={{ color: "var(--color-text-2)" }}>
+                    {CANDIDATE.bio}
+                  </p>
                 </div>
               </div>
 
@@ -585,7 +588,7 @@ export default function MatchingPage() {
             <div className="flex-1" />
             {stage === "blocked" ? (
               <Button type="button" variant="secondary" onClick={runReadiness}>
-                retry receiver check
+                retry balance check
               </Button>
             ) : (
               <Button

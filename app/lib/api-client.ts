@@ -7,6 +7,7 @@ import type {
   ErrandCategory,
   ErrandItem,
   ErrandMessage,
+  SmartDisputeBrief,
   TrustlessAction,
 } from "../types";
 
@@ -78,6 +79,9 @@ export type FundedErrandCreateResponse =
   | {
       step: "created";
       errand: Errand;
+      escrowContractId?: string;
+      deployTransactionHash?: string;
+      fundTransactionHash?: string;
     };
 
 export function createFundedErrand(input: {
@@ -101,7 +105,7 @@ export function decodeErrand(text: string) {
 }
 
 export function getWalletUsdcBalance(address: string) {
-  return request<{ balanceUSDC: number; hasTrustline: boolean }>(
+  return request<{ balanceUSDC: number }>(
     `/api/wallets/${address}/usdc`,
   );
 }
@@ -116,6 +120,13 @@ export function listTrustlessActions(id: string) {
 
 export function acceptErrand(id: string, runnerWallet: string) {
   return request<{ errand: Errand }>(`/api/errands/${id}/accept`, {
+    method: "POST",
+    body: JSON.stringify({ runnerWallet }),
+  });
+}
+
+export function startErrand(id: string, runnerWallet: string) {
+  return request<{ errand: Errand }>(`/api/errands/${id}/start`, {
     method: "POST",
     body: JSON.stringify({ runnerWallet }),
   });
@@ -161,6 +172,13 @@ export function resolveDispute(
     method: "POST",
     body: JSON.stringify({ resolution, signer, resolverNotes }),
   });
+}
+
+export function generateSmartDisputeBrief(id: string, signer: string) {
+  return request<{ brief: SmartDisputeBrief }>(
+    `/api/disputes/${id}/brief?signer=${encodeURIComponent(signer)}`,
+    { cache: "no-store" },
+  );
 }
 
 export type ChatAccess = "customer" | "padi" | "resolver" | null;

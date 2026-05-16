@@ -7,6 +7,8 @@ import ErrandRow from "../components/ErrandCard";
 import { useWallet } from "../components/WalletProvider";
 import { Errand, ErrandCategory } from "../types";
 import { listErrands } from "../lib/api-client";
+import { getCustomerProfile } from "../lib/user-profile";
+import { getPadiProfile } from "../lib/padi-profile";
 
 const CATEGORIES: { value: ErrandCategory | "all"; label: string }[] = [
   { value: "all", label: "all" },
@@ -39,6 +41,10 @@ export default function ErrandsListPage() {
   const [sort, setSort] = useState<Sort>("fee_high");
   // padi view vs customer view. Defaults to padi when no wallet (browsing).
   const [view, setView] = useState<"padi" | "customer">("padi");
+  const connectedName =
+    view === "padi"
+      ? getPadiProfile(wallet.address)?.name
+      : getCustomerProfile(wallet.address)?.name;
 
   useEffect(() => {
     listErrands()
@@ -87,8 +93,16 @@ export default function ErrandsListPage() {
             {wallet.address ? (
               <>
                 <span style={{ color: "var(--color-text-3)" }}>
-                  {shortAddr(wallet.address)}
+                  {connectedName ?? shortAddr(wallet.address)}
                 </span>
+                {connectedName && (
+                  <>
+                    <span style={{ color: "var(--color-text-4)" }}>·</span>
+                    <span style={{ color: "var(--color-text-4)" }}>
+                      {shortAddr(wallet.address)}
+                    </span>
+                  </>
+                )}
                 <span style={{ color: "var(--color-text-4)" }}>·</span>
                 <button
                   type="button"
@@ -236,7 +250,9 @@ export default function ErrandsListPage() {
                 style={{ color: "var(--color-text-2)" }}
               >
                 {view === "padi"
-                  ? "no open errands in this category right now. check back at lunch — markets get busy after 11."
+                  ? wallet.address
+                    ? "no open or assigned Padi jobs match this filter. disputed and active jobs stay here when they belong to your wallet."
+                    : "no open errands in this category right now. connect wallet to see your assigned Padi jobs."
                   : "you haven't posted anything yet. posting is four steps."}
               </p>
               {view === "customer" && (

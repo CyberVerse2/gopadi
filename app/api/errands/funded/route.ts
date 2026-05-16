@@ -113,7 +113,16 @@ export async function POST(request: Request) {
       responsePayload: fundResponse,
     });
 
-    return Response.json({ step: "created", errand }, { status: 201 });
+    return Response.json(
+      {
+        step: "created",
+        errand,
+        escrowContractId: body.preparedContractId,
+        deployTransactionHash: body.deployTransactionHash,
+        fundTransactionHash: fundHash,
+      },
+      { status: 201 },
+    );
   } catch (error) {
     return badRequest(error instanceof Error ? error.message : "Failed to fund and create errand.");
   }

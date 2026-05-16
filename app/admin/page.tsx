@@ -8,8 +8,9 @@ import Button from "../components/Button";
 import ChatPanelContainer from "../components/ChatPanelContainer";
 import { MoneyDisplay, MoneyInline } from "../components/MoneyDisplay";
 import { useWallet } from "../components/WalletProvider";
-import { Errand, Dispute, TrustlessAction } from "../types";
+import { Errand, Dispute, SmartDisputeBrief, TrustlessAction } from "../types";
 import {
+  generateSmartDisputeBrief,
   listErrands,
   listDisputes,
   listTrustlessActions,
@@ -17,6 +18,8 @@ import {
   resolveDispute,
   submitSignedTrustlessAction,
 } from "../lib/api-client";
+import { getPadiProfile } from "../lib/padi-profile";
+import { getCustomerProfile } from "../lib/user-profile";
 
 const TABS = [
   { key: "disputes", label: "disputes" },
@@ -36,6 +39,55 @@ function shortAddr(value: string) {
   return `${value.slice(0, 4)}…${value.slice(-4)}`;
 }
 
+function stellarExpertTxUrl(hash: string) {
+  return `https://stellar.expert/explorer/testnet/tx/${hash}`;
+}
+
+type ProofEvidenceItem = {
+  type: "receipt" | "items" | "delivery" | "other";
+  url: string;
+  name?: string;
+};
+
+function parseProofEvidence(value?: string): ProofEvidenceItem[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value) as ProofEvidenceItem[];
+    if (!Array.isArray(parsed)) return [{ type: "other", url: value }];
+    return parsed.filter((item) => item && typeof item.url === "string");
+  } catch {
+    return [{ type: "other", url: value }];
+  }
+}
+
+function proofEvidenceLabel(type: ProofEvidenceItem["type"]) {
+  if (type === "delivery") return "handoff";
+  return type === "items" ? "items" : type === "receipt" ? "receipt" : "evidence";
+}
+
+function isLikelyImageUrl(url: string) {
+  return /\.(png|jpe?g|webp|gif)(\?|#|$)/i.test(url) || url.includes("res.cloudinary.com");
+}
+
+function trustlessActionLabel(type: TrustlessAction["type"]) {
+  switch (type) {
+    case "initialize_escrow":
+      return "escrow created";
+    case "fund_escrow":
+      return "escrow funded";
+    case "change_milestone_status":
+      return "proof milestone submitted";
+    case "approve_milestone":
+      return "milestone approved";
+    case "release_funds":
+      return "funds released";
+    case "dispute_escrow":
+      return "dispute opened";
+    case "resolve_dispute":
+      return "dispute resolved";
+  }
+}
+
 export default function AdminPage() {
   const wallet = useWallet();
   const [errands, setErrands] = useState<Errand[]>([]);
@@ -48,6 +100,10 @@ export default function AdminPage() {
   const [actionsByErrand, setActionsByErrand] = useState<
     Record<string, TrustlessAction[]>
   >({});
+  const [briefsByDispute, setBriefsByDispute] = useState<
+    Record<string, SmartDisputeBrief>
+  >({});
+  const [briefLoading, setBriefLoading] = useState<string | null>(null);
 
   const refresh = useCallback(
     (signer = wallet.address) => {
@@ -87,6 +143,20 @@ export default function AdminPage() {
       } catch {
         // Non-blocking; chat just renders without system events.
       }
+    }
+  }
+
+  async function handleGenerateBrief(d: Dispute) {
+    const signer = wallet.address ?? (await wallet.connect());
+    setBriefLoading(d.id);
+    setError(null);
+    try {
+      const { brief } = await generateSmartDisputeBrief(d.id, signer);
+      setBriefsByDispute((prev) => ({ ...prev, [d.id]: brief }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "failed to generate dispute brief.");
+    } finally {
+      setBriefLoading(null);
     }
   }
 
@@ -274,6 +344,9 @@ export default function AdminPage() {
                   const errand = getErrandFor(d);
                   if (!errand) return null;
                   const isOpen = expanded === d.id;
+                  const padiProfile = getPadiProfile(errand.runnerWallet);
+                  const customerProfile = getCustomerProfile(errand.customerWallet);
+                  const brief = briefsByDispute[d.id];
                   return (
                     <li key={d.id} className="hairline-b">
                       <button
@@ -361,19 +434,87 @@ export default function AdminPage() {
                                 >
                                   “{errand.proofNote}”
                                 </p>
-                                {errand.proofUrl && (
-                                  <a
-                                    href={errand.proofUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="mono text-xs break-all mt-2 inline-block underline underline-offset-2"
-                                    style={{ color: "var(--color-text-2)" }}
-                                  >
-                                    evidence · {errand.proofUrl}
-                                  </a>
+                                {parseProofEvidence(errand.proofUrl).length > 0 && (
+                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+                                    {parseProofEvidence(errand.proofUrl).map((item) => (
+                                      <a
+                                        key={item.url}
+                                        href={item.url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="block hairline overflow-hidden"
+                                        style={{ background: "var(--color-bg)" }}
+                                      >
+                                        {isLikelyImageUrl(item.url) ? (
+                                          // eslint-disable-next-line @next/next/no-img-element
+                                          <img
+                                            src={item.url}
+                                            alt={`${proofEvidenceLabel(item.type)} evidence`}
+                                            className="block w-full object-cover"
+                                            style={{ aspectRatio: "4 / 3" }}
+                                          />
+                                        ) : (
+                                          <span
+                                            className="grid place-items-center mono text-[0.625rem] uppercase tracking-[0.08em]"
+                                            style={{ aspectRatio: "4 / 3", color: "var(--color-text-3)" }}
+                                          >
+                                            open link
+                                          </span>
+                                        )}
+                                        <span
+                                          className="mono text-[0.625rem] uppercase tracking-[0.08em] block p-2 truncate"
+                                          style={{ color: "var(--color-text-3)" }}
+                                        >
+                                          {proofEvidenceLabel(item.type)}
+                                        </span>
+                                      </a>
+                                    ))}
+                                  </div>
                                 )}
                               </div>
                             )}
+
+                            <div
+                              className="hairline px-4 py-4 mt-3"
+                              style={{ background: "var(--color-bg-2)" }}
+                            >
+                              <div className="flex flex-wrap items-center justify-between gap-3">
+                                <div>
+                                  <p className="eyebrow mb-1">smart dispute brief</p>
+                                  <p
+                                    className="text-sm"
+                                    style={{ color: "var(--color-text-3)" }}
+                                  >
+                                    AI reads the errand, chat, proof, and escrow actions.
+                                  </p>
+                                </div>
+                                <Button
+                                  variant="secondary"
+                                  onClick={() => void handleGenerateBrief(d)}
+                                  loading={briefLoading === d.id}
+                                  disabled={briefLoading === d.id}
+                                >
+                                  {brief ? "regenerate brief" : "generate brief"}
+                                </Button>
+                              </div>
+
+                              {brief && <SmartBriefPanel brief={brief} />}
+                            </div>
+
+                            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <SettlementPreview
+                                label="release to padi"
+                                wallet={errand.runnerWallet}
+                                amount={errand.totalEscrowAmountUSDC}
+                                action="resolve_dispute"
+                              />
+                              <SettlementPreview
+                                label="refund customer"
+                                wallet={errand.customerWallet}
+                                amount={errand.totalEscrowAmountUSDC}
+                                action="resolve_dispute"
+                              />
+                            </div>
 
                             {/* Live chat transcript between customer and padi.
                                 Resolver gets access automatically once a
@@ -478,17 +619,26 @@ export default function AdminPage() {
                                 className="mono text-xs break-all"
                                 style={{ color: "var(--color-text-2)" }}
                               >
-                                cust {shortAddr(errand.customerWallet)}
+                                customer {customerProfile?.name ?? shortAddr(errand.customerWallet)}
+                              </p>
+                              <p className="mono text-xs break-all" style={{ color: "var(--color-text-3)" }}>
+                                {shortAddr(errand.customerWallet)}
                               </p>
                               <p
                                 className="mono text-xs break-all"
                                 style={{ color: "var(--color-text-2)" }}
                               >
                                 padi{" "}
-                                {errand.runnerWallet
-                                  ? shortAddr(errand.runnerWallet)
-                                  : "—"}
+                                {padiProfile?.name ??
+                                  (errand.runnerWallet
+                                    ? shortAddr(errand.runnerWallet)
+                                    : "—")}
                               </p>
+                              {padiProfile && (
+                                <p className="mono text-xs break-all" style={{ color: "var(--color-text-3)" }}>
+                                  {padiProfile.rating} rating · {padiProfile.completed} done · {padiProfile.specialty}
+                                </p>
+                              )}
                               {errand.escrowContractId && (
                                 <p
                                   className="mono text-xs break-all pt-1"
@@ -497,6 +647,33 @@ export default function AdminPage() {
                                   contract {shortAddr(errand.escrowContractId)}
                                 </p>
                               )}
+                            </div>
+                            <div className="mt-5 hairline-t pt-4">
+                              <p className="eyebrow mb-3">trustless work actions</p>
+                              <ol className="space-y-3">
+                                {(actionsByErrand[errand.id] ?? []).map((action) => (
+                                  <li key={action.id}>
+                                    <p className="mono text-[0.625rem] uppercase tracking-[0.08em]" style={{ color: "var(--color-text)" }}>
+                                      {trustlessActionLabel(action.type)}
+                                    </p>
+                                    <p className="mono text-[0.625rem] mt-1" style={{ color: action.status === "failed" ? "var(--color-risk)" : "var(--color-text-4)" }}>
+                                      {action.status} · signer {shortAddr(action.signer)}
+                                    </p>
+                                    {action.transactionHash && (
+                                      <a
+                                        href={stellarExpertTxUrl(action.transactionHash)}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="mono text-[0.625rem] block truncate underline underline-offset-2"
+                                        style={{ color: "var(--color-text-3)" }}
+                                        title={action.transactionHash}
+                                      >
+                                        tx {shortAddr(action.transactionHash)} ↗
+                                      </a>
+                                    )}
+                                  </li>
+                                ))}
+                              </ol>
                             </div>
                           </aside>
                         </div>
@@ -593,17 +770,18 @@ export default function AdminPage() {
                           className="mono text-[0.625rem] truncate"
                           style={{ color: "var(--color-text-3)" }}
                         >
+                          {getCustomerProfile(e.customerWallet)?.name ?? "customer"} ·{" "}
                           {e.escrowContractId
                             ? shortAddr(e.escrowContractId)
-                            : "no contract"}{" "}
-                          · cust {shortAddr(e.customerWallet)}
+                            : "no contract"}
                         </p>
                       </div>
                       <span
                         className="mono text-xs hidden sm:inline"
                         style={{ color: "var(--color-text-3)" }}
                       >
-                        {e.runnerWallet ? shortAddr(e.runnerWallet) : "—"}
+                        {getPadiProfile(e.runnerWallet)?.name ??
+                          (e.runnerWallet ? shortAddr(e.runnerWallet) : "—")}
                       </span>
                       <span className="mono text-sm">
                         <MoneyInline
@@ -760,6 +938,133 @@ export default function AdminPage() {
           </section>
         )}
       </main>
+    </div>
+  );
+}
+
+function SmartBriefPanel({ brief }: { brief: SmartDisputeBrief }) {
+  const recommendationLabel =
+    brief.recommendation === "release_to_runner"
+      ? "release to padi"
+      : brief.recommendation === "refund_customer"
+        ? "refund customer"
+        : "needs more evidence";
+  const recommendationColor =
+    brief.recommendation === "needs_more_evidence"
+      ? "var(--color-risk)"
+      : "var(--color-signal)";
+
+  return (
+    <div className="mt-4 hairline-t pt-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <p
+          className="text-sm leading-relaxed max-w-[68ch]"
+          style={{ color: "var(--color-text)" }}
+        >
+          {brief.summary}
+        </p>
+        <div className="text-right">
+          <p
+            className="mono text-[0.625rem] uppercase tracking-[0.08em]"
+            style={{ color: "var(--color-text-3)" }}
+          >
+            recommendation
+          </p>
+          <p
+            className="mono text-xs uppercase tracking-[0.08em]"
+            style={{ color: recommendationColor }}
+          >
+            {recommendationLabel} · {(brief.confidence * 100).toFixed(0)}%
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <BriefList title="timeline" items={brief.timeline} />
+        <BriefList title="missing evidence" items={brief.missingEvidence} />
+        <BriefList title="supports customer" items={brief.evidenceForCustomer} />
+        <BriefList title="supports padi" items={brief.evidenceForPadi} />
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <BriefText title="customer claim" body={brief.customerClaim} />
+        <BriefText title="padi position" body={brief.padiPosition} />
+      </div>
+
+      {brief.recommendedQuestions.length > 0 && (
+        <div className="mt-4">
+          <BriefList title="next questions" items={brief.recommendedQuestions} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BriefText({ title, body }: { title: string; body: string }) {
+  return (
+    <section>
+      <p className="eyebrow mb-2" style={{ color: "var(--color-text-3)" }}>
+        {title}
+      </p>
+      <p className="text-sm leading-relaxed" style={{ color: "var(--color-text-2)" }}>
+        {body}
+      </p>
+    </section>
+  );
+}
+
+function BriefList({ title, items }: { title: string; items: string[] }) {
+  return (
+    <section>
+      <p className="eyebrow mb-2" style={{ color: "var(--color-text-3)" }}>
+        {title}
+      </p>
+      {items.length === 0 ? (
+        <p className="text-sm" style={{ color: "var(--color-text-4)" }}>
+          none surfaced.
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {items.map((item) => (
+            <li
+              key={item}
+              className="text-sm leading-snug"
+              style={{ color: "var(--color-text-2)" }}
+            >
+              {item}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function SettlementPreview({
+  label,
+  wallet,
+  amount,
+  action,
+}: {
+  label: string;
+  wallet?: string | null;
+  amount: number;
+  action: TrustlessAction["type"];
+}) {
+  return (
+    <div className="hairline p-3" style={{ background: "var(--color-bg-2)" }}>
+      <p className="mono text-[0.625rem] uppercase tracking-[0.08em]" style={{ color: "var(--color-text)" }}>
+        {label}
+      </p>
+      <p className="mono text-sm mt-2" style={{ color: "var(--color-signal)" }}>
+        <MoneyInline amount={amount} tone="signal" />
+      </p>
+      <p className="mono text-[0.625rem] mt-2 truncate" title={wallet ?? ""} style={{ color: "var(--color-text-3)" }}>
+        receiver {wallet ? shortAddr(wallet) : "not set"}
+      </p>
+      <p className="mono text-[0.625rem] mt-1 uppercase tracking-[0.08em]" style={{ color: "var(--color-text-4)" }}>
+        trustless work · {action}
+      </p>
     </div>
   );
 }

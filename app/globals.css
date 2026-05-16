@@ -172,6 +172,277 @@
   .motion-fade-up {
     animation: fade-up 320ms var(--ease-out-quint) both;
   }
+
+  .motion-slide-up {
+    animation: slide-up 240ms var(--ease-out-quint) both;
+  }
+
+  .motion-detail-panel {
+    transform-origin: top center;
+  }
+  details[open] > .motion-detail-panel {
+    animation: detail-open 220ms var(--ease-out-quint) both;
+  }
+  details > summary .summary-mark {
+    transition:
+      transform 180ms var(--ease-out-quint),
+      color 180ms var(--ease-out-quart);
+  }
+  details[open] > summary .summary-mark {
+    transform: rotate(45deg);
+    color: var(--color-signal);
+  }
+
+  .motion-timeline-line {
+    overflow: hidden;
+    transform: scaleY(0);
+    transform-origin: top center;
+    transition: transform 520ms var(--ease-out-expo);
+    transition-delay: calc(var(--i, 0) * 70ms);
+  }
+  .motion-timeline-line::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--color-signal);
+    transform: translateY(-110%);
+    opacity: 0;
+  }
+  .motion-timeline-line.is-filled {
+    transform: scaleY(1);
+  }
+  .motion-timeline-line.is-funded::after {
+    animation: timeline-funding-sweep 820ms var(--ease-out-expo) both;
+    animation-delay: calc(var(--i, 0) * 90ms + 120ms);
+  }
+  .motion-timeline-step {
+    opacity: 0;
+    transform: translate3d(-4px, 6px, 0);
+    animation: timeline-step-in 360ms var(--ease-out-quint) both;
+    animation-delay: calc(var(--i, 0) * 55ms);
+  }
+  .motion-timeline-node {
+    transition:
+      transform 180ms var(--ease-out-quint),
+      background-color 180ms var(--ease-out-quart),
+      border-color 180ms var(--ease-out-quart);
+  }
+  .motion-timeline-node.is-done {
+    animation: node-check 260ms var(--ease-out-expo) both;
+    animation-delay: calc(var(--i, 0) * 55ms + 80ms);
+  }
+  .motion-timeline-node.is-active {
+    animation: signal-pulse 1800ms var(--ease-out-quint) infinite;
+  }
+  .motion-timeline-node.is-active::after {
+    content: "";
+    position: absolute;
+    inset: -5px;
+    border: 1px solid var(--color-signal);
+    border-radius: 999px;
+    opacity: 0;
+    animation: node-ring 1800ms var(--ease-out-expo) infinite;
+  }
+  .motion-timeline-copy {
+    transition:
+      color 180ms var(--ease-out-quart),
+      transform 180ms var(--ease-out-quint);
+  }
+  .motion-timeline-step:hover .motion-timeline-copy {
+    transform: translateX(2px);
+  }
+  .motion-timeline-receipts {
+    animation: receipt-in 300ms var(--ease-out-quint) both;
+    animation-delay: calc(var(--i, 0) * 55ms + 140ms);
+  }
+
+  .motion-action-row {
+    transition:
+      transform 200ms var(--ease-out-quint),
+      opacity 200ms var(--ease-out-quart);
+  }
+  .motion-action-row:hover {
+    transform: translateX(2px);
+  }
+
+  .motion-evidence-card {
+    transition:
+      transform 220ms var(--ease-out-quint),
+      border-color 200ms var(--ease-out-quart),
+      filter 200ms var(--ease-out-quart);
+  }
+  .motion-evidence-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--color-rule-strong);
+    filter: brightness(1.04);
+  }
+
+  .delight-stamp {
+    position: relative;
+    overflow: hidden;
+  }
+  .delight-stamp::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      linear-gradient(
+        105deg,
+        transparent 0%,
+        transparent 42%,
+        color-mix(in oklab, var(--color-signal) 16%, transparent) 50%,
+        transparent 58%,
+        transparent 100%
+      );
+    transform: translateX(-120%);
+    transition: transform 520ms var(--ease-out-expo);
+  }
+  .delight-stamp:hover::after {
+    transform: translateX(120%);
+  }
+  .settlement-stamp {
+    position: relative;
+  }
+  .settlement-stamp::before {
+    content: "settled";
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    z-index: 1;
+    border: 1px solid currentColor;
+    color: var(--color-ok);
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    line-height: 1;
+    padding: 0.45rem 0.5rem;
+    text-transform: uppercase;
+    transform: rotate(-3deg) scale(0.92);
+    opacity: 0;
+    animation: settlement-stamp-in 420ms var(--ease-out-expo) 220ms both;
+  }
+  .settlement-stamp.is-refunded::before {
+    content: "refunded";
+    color: var(--color-risk);
+  }
+  .settlement-amount {
+    animation: settlement-amount-lock 520ms var(--ease-out-expo) both;
+  }
+
+  .handoff-code {
+    transition:
+      color 180ms var(--ease-out-quart),
+      transform 180ms var(--ease-out-quint);
+  }
+  .handoff-code:hover {
+    color: var(--color-signal);
+    transform: translateY(-1px);
+  }
+
+  /* Reveal — entrance system used by <RevealGroup>/<Reveal>.
+     Children stagger on a single hairline of motion: 14px lift + fade.
+     Stagger is driven by --i (item index); per-item offset by --reveal-delay. */
+  .reveal-item {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0);
+    transition:
+      opacity 540ms var(--ease-out-quint),
+      transform 600ms var(--ease-out-quint);
+    transition-delay: calc(var(--i, 0) * 70ms + var(--reveal-delay, 0ms));
+    will-change: opacity, transform;
+  }
+  .reveal-group.is-active .reveal-item {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+
+  /* Escrow timeline — fill bar animates from 0 to its target on activation.
+     Each cell sets --fill (0–1) and --i (stagger index). */
+  .escrow-cell .fill {
+    width: 0;
+    transition: width 760ms var(--ease-out-expo);
+    transition-delay: calc(var(--i, 0) * 120ms + 240ms);
+  }
+  .reveal-group.is-active .escrow-cell .fill {
+    width: calc(var(--fill, 0) * 100%);
+  }
+  .escrow-cell .arrow {
+    opacity: 0;
+    transform: translateX(-4px);
+    transition:
+      opacity 360ms var(--ease-out-quart),
+      transform 360ms var(--ease-out-quint);
+    transition-delay: calc(var(--i, 0) * 120ms + 360ms);
+  }
+  .reveal-group.is-active .escrow-cell .arrow {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  /* CTA — quiet hover lift + brightness, restrained press. */
+  .cta-primary {
+    transition:
+      transform 200ms var(--ease-out-quint),
+      filter 200ms var(--ease-out-quart),
+      box-shadow 200ms var(--ease-out-quart);
+  }
+  .cta-primary:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.04);
+  }
+  .cta-primary:active {
+    transform: translateY(1px);
+    filter: brightness(0.98);
+  }
+  .cta-ghost {
+    transition:
+      transform 200ms var(--ease-out-quint),
+      border-color 220ms var(--ease-out-quart),
+      color 220ms var(--ease-out-quart),
+      background-color 220ms var(--ease-out-quart);
+  }
+  .cta-ghost:hover {
+    transform: translateY(-1px);
+    border-color: var(--color-signal);
+    color: var(--color-signal);
+  }
+  .cta-ghost:active {
+    transform: translateY(1px);
+  }
+
+  /* Card lift — for ErrandCard and category plates. */
+  .lift {
+    transition:
+      transform 240ms var(--ease-out-quint),
+      border-color 220ms var(--ease-out-quart);
+  }
+  .lift:hover {
+    transform: translateY(-2px);
+    border-color: var(--color-rule-strong);
+  }
+
+  /* Underline draw — for inline links inside body copy. */
+  .link-draw {
+    position: relative;
+    display: inline-block;
+  }
+  .link-draw::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -2px;
+    height: 1px;
+    background: currentColor;
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform 320ms var(--ease-out-quint);
+  }
+  .link-draw:hover::after {
+    transform: scaleX(1);
+  }
 }
 
 @keyframes fade-in {
@@ -184,9 +455,59 @@
   to   { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 
+@keyframes slide-up {
+  from { opacity: 0; transform: translate3d(0, 100%, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes detail-open {
+  from { opacity: 0; transform: translate3d(0, -6px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes timeline-step-in {
+  from { opacity: 0; transform: translate3d(-4px, 6px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes receipt-in {
+  from { opacity: 0; transform: translate3d(0, -4px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes node-check {
+  0% { transform: scale(0.72); }
+  70% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+
+@keyframes timeline-funding-sweep {
+  0% { opacity: 0; transform: translateY(-110%); }
+  12% { opacity: 1; }
+  72% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(110%); }
+}
+
+@keyframes settlement-stamp-in {
+  0% { opacity: 0; transform: rotate(-6deg) scale(1.18); }
+  64% { opacity: 1; transform: rotate(-3deg) scale(0.96); }
+  100% { opacity: 1; transform: rotate(-3deg) scale(1); }
+}
+
+@keyframes settlement-amount-lock {
+  0% { filter: brightness(1); transform: translateY(0); }
+  36% { filter: brightness(1.2); transform: translateY(-1px); }
+  100% { filter: brightness(1); transform: translateY(0); }
+}
+
 @keyframes signal-pulse {
   0%, 100% { opacity: 1; }
   50%      { opacity: 0.45; }
+}
+
+@keyframes node-ring {
+  0% { opacity: 0.55; transform: scale(0.72); }
+  70%, 100% { opacity: 0; transform: scale(1.45); }
 }
 
 @media (prefers-reduced-motion: reduce) {

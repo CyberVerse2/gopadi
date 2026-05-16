@@ -164,9 +164,8 @@ The app supports:
 - Signing unsigned Trustless Work XDR transactions.
 - Submitting signed XDR through Trustless Work.
 - Checking USDC balances through Stellar Horizon.
-- Verifying whether the customer has the configured USDC trustline.
 
-The payment asset is USDC, configured through the Trustless Work/Stellar trustline settings.
+The payment asset is USDC, configured through the Trustless Work/Stellar asset settings.
 
 ## AI Errand Intake
 
@@ -447,7 +446,7 @@ type Dispute = {
 4. Trustless Work escrow creation
 5. Trustless Work escrow funding
 6. Stellar/Freighter signing
-7. USDC balance and trustline checks
+7. USDC balance checks
 8. Proof upload
 9. Milestone approval
 10. Fund release

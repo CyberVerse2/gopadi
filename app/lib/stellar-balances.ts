@@ -18,7 +18,7 @@ export async function getWalletUsdcBalance(address: string) {
 
   const response = await fetch(`${HORIZON_URL}/accounts/${address}`);
   if (response.status === 404) {
-    return { balanceUSDC: 0, hasTrustline: false };
+    return { balanceUSDC: 0 };
   }
   if (!response.ok) {
     throw new Error(`Could not check wallet balance. Horizon returned ${response.status}.`);
@@ -33,6 +33,5 @@ export async function getWalletUsdcBalance(address: string) {
 
   return {
     balanceUSDC: usdcBalance ? Number.parseFloat(usdcBalance.balance) : 0,
-    hasTrustline: Boolean(usdcBalance),
   };
 }

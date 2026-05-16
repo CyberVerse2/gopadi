@@ -126,3 +126,19 @@ export type TrustlessAction = {
   createdAt: string;
   submittedAt?: string;
 };
+
+export type SmartDisputeBrief = {
+  summary: string;
+  timeline: string[];
+  customerClaim: string;
+  padiPosition: string;
+  evidenceForCustomer: string[];
+  evidenceForPadi: string[];
+  missingEvidence: string[];
+  recommendedQuestions: string[];
+  recommendation:
+    | "release_to_runner"
+    | "refund_customer"
+    | "needs_more_evidence";
+  confidence: number;
+};

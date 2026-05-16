@@ -3,6 +3,8 @@
 import { useState, useRef } from "react";
 import type { Errand, ErrandMessage, TrustlessAction, Dispute } from "../types";
 import { uploadChatImage } from "../lib/api-client";
+import { getPadiProfile } from "../lib/padi-profile";
+import { getCustomerProfile } from "../lib/user-profile";
 import Button from "./Button";
 import type { ChatState } from "./useErrandChat";
 
@@ -39,6 +41,14 @@ function roleFor(wallet: string, errand: Errand): "customer" | "padi" | "resolve
   return "unknown";
 }
 
+function displayNameFor(wallet: string, errand: Errand) {
+  const role = roleFor(wallet, errand);
+  if (role === "padi") return getPadiProfile(wallet)?.name ?? "Padi";
+  if (role === "customer") return getCustomerProfile(wallet)?.name ?? "Customer";
+  if (role === "resolver") return "Resolver";
+  return shortAddr(wallet);
+}
+
 function roleColor(role: ReturnType<typeof roleFor>): string {
   switch (role) {
     case "customer":
@@ -70,6 +80,7 @@ function deriveSystemEvents(
   const events: SystemEvent[] = [];
 
   if (errand.runnerWallet) {
+    const padiName = getPadiProfile(errand.runnerWallet)?.name ?? "Padi";
     const earliestAction = actions
       .map((a) => a.submittedAt ?? a.createdAt)
       .filter(Boolean)
@@ -79,7 +90,7 @@ function deriveSystemEvents(
       kind: "system",
       id: "sys_accepted",
       at,
-      label: `padi accepted · ${shortAddr(errand.runnerWallet)}`,
+      label: `${padiName} accepted · ${shortAddr(errand.runnerWallet)}`,
     });
   }
 
@@ -93,7 +104,7 @@ function deriveSystemEvents(
         case "fund_escrow":
           return "escrow funded";
         case "change_milestone_status":
-          return "padi started the errand";
+          return "padi submitted shopping proof";
         case "approve_milestone":
           return "customer confirmed completion";
         case "release_funds":
@@ -344,6 +355,7 @@ export default function ChatPanel({
             }
             const role = roleFor(entry.authorWallet, errand);
             const isMe = entry.authorWallet === connectedWallet;
+            const displayName = displayNameFor(entry.authorWallet, errand);
             return (
               <li
                 key={entry.id}
@@ -351,16 +363,16 @@ export default function ChatPanel({
               >
                 <div className="flex items-baseline gap-2 flex-wrap">
                   <span
-                    className="mono text-xs"
+                    className="text-sm"
                     style={{ color: roleColor(role), fontWeight: 600 }}
                   >
-                    {shortAddr(entry.authorWallet)}
+                    {displayName}
                   </span>
                   <span
                     className="mono uppercase text-[0.625rem] tracking-[0.08em]"
                     style={{ color: roleColor(role), opacity: 0.7 }}
                   >
-                    {role}
+                    {role} · {shortAddr(entry.authorWallet)}
                   </span>
                   {isMe && (
                     <span

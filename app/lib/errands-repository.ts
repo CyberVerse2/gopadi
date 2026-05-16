@@ -158,6 +158,23 @@ export async function updateErrandStatus(id: string, status: ErrandStatus) {
   return serializeErrand(row);
 }
 
+export async function startErrand(id: string, runnerWallet: string) {
+  if (!runnerWallet.trim()) throw new Error("Runner wallet is required.");
+  const errand = await requireErrand(id);
+  requireStatus(errand.status, ["escrow_funded"]);
+  if (runnerWallet !== errand.runnerWallet) {
+    throw new Error("Only the assigned Padi can start this errand.");
+  }
+
+  const [row] = await getDb()
+    .update(errands)
+    .set({ status: "in_progress", updatedAt: new Date() })
+    .where(eq(errands.id, id))
+    .returning();
+
+  return serializeErrand(row);
+}
+
 export async function setEscrowCreated(
   id: string,
   engagementId: string,
@@ -191,7 +208,7 @@ export async function setEscrowContract(id: string, contractId: string) {
 export async function uploadProof(id: string, proofNote: string, proofUrl?: string) {
   if (!proofNote.trim()) throw new Error("Proof note is required.");
   const errand = await requireErrand(id);
-  requireStatus(errand.status, ["in_progress"]);
+  requireStatus(errand.status, ["in_progress", "proof_uploaded"]);
 
   const [row] = await getDb()
     .update(errands)

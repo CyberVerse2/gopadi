@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Errand } from "../types";
 import StatusBadge from "./StatusBadge";
 import { MoneyInline } from "./MoneyDisplay";
+import { getPadiProfile } from "../lib/padi-profile";
 
 function formatDeadline(iso: string): string {
   const d = new Date(iso);
@@ -32,6 +33,7 @@ export default function ErrandRow({
 }) {
   const isOverdue = new Date(errand.deadline) < new Date();
   const padiShort = shortAddr(errand.runnerWallet);
+  const padiProfile = getPadiProfile(errand.runnerWallet);
 
   return (
     <Link
@@ -57,7 +59,9 @@ export default function ErrandRow({
             {padiShort && variant === "customer" && (
               <>
                 <span className="mx-1.5" style={{ color: "var(--color-text-4)" }}>·</span>
-                <span style={{ color: "var(--color-text-3)" }}>padi {padiShort}</span>
+                <span style={{ color: "var(--color-text-3)" }}>
+                  padi {padiProfile?.name ?? padiShort}
+                </span>
               </>
             )}
           </div>
@@ -91,7 +95,10 @@ export default function ErrandRow({
                 className="mono text-[0.625rem] uppercase tracking-[0.08em] mt-0.5"
                 style={{ color: "var(--color-text-4)" }}
               >
-                fee · {formatDeadline(errand.deadline)}{isOverdue ? "" : " left"}
+                {padiProfile && variant === "padi"
+                  ? `${padiProfile.rating} rating · `
+                  : "fee · "}
+                {formatDeadline(errand.deadline)}{isOverdue ? "" : " left"}
               </p>
             </>
           ) : (

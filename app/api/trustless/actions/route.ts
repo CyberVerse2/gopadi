@@ -47,7 +47,7 @@ function validateTrustlessActionPolicy(
       if (signer !== errand.customerWallet) return "Only the customer can fund escrow.";
       return null;
     case "change_milestone_status":
-      if (errand.status !== "escrow_funded") return "Only funded escrows can move into progress.";
+      if (errand.status !== "in_progress") return "Proof can only be submitted after the Padi starts shopping.";
       if (signer !== errand.runnerWallet) return "Only the assigned Padi can update progress.";
       return null;
     case "approve_milestone":
